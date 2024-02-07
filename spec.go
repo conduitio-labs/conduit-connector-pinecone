@@ -1,4 +1,4 @@
-package connectorname
+package pinecone
 
 import (
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -11,10 +11,9 @@ var version = "(devel)"
 // Specification returns the connector's specification.
 func Specification() sdk.Specification {
 	return sdk.Specification{
-		Name:        "connectorname",
-		Summary:     "<describe your connector>",
-		Description: "<describe your connector in detail>",
-		Version:     version,
-		Author:      "<your name>",
+		Name:    "pinecone",
+		Summary: "A pinecone destination plugin for Conduit, written in Go.",
+		Version: version,
+		Author:  "Adam Haffar",
 	}
 }

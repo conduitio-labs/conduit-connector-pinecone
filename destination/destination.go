@@ -1,4 +1,4 @@
-package connectorname
+package destination
 
 //go:generate paramgen -output=paramgen_dest.go DestinationConfig
 
@@ -12,12 +12,12 @@ import (
 type Destination struct {
 	sdk.UnimplementedDestination
 
-	config DestinationConfig
+	config Config
 }
 
-type DestinationConfig struct {
+type Config struct {
 	// Config includes parameters that are the same in the source and destination.
-	Config
+	*Config
 	// DestinationConfigParam must be either yes or no (defaults to yes).
 	DestinationConfigParam string `validate:"inclusion=yes|no" default:"yes"`
 }

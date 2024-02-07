@@ -1,10 +1,10 @@
-package connectorname_test
+package destination
 
 import (
 	"context"
+	connectorname "github.com/conduitio-labs/conduit-connector-pinecone/destination"
 	"testing"
 
-	connectorname "github.com/conduitio/conduit-connector-connectorname"
 	"github.com/matryer/is"
 )
 
