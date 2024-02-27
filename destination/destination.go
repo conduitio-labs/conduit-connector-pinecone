@@ -5,14 +5,17 @@ package destination
 import (
 	"context"
 	"fmt"
-
+	"github.com/conduitio-labs/conduit-connector-pinecone/writer"
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	pinecone "github.com/nekomeowww/go-pinecone"
 )
 
 type Destination struct {
 	sdk.UnimplementedDestination
 
 	config Config
+	client pinecone.IndexClient
+	writer writer.Writer
 }
 
 type Config struct {
@@ -31,6 +34,7 @@ func (d *Destination) Parameters() map[string]sdk.Parameter {
 	// Parameters is a map of named Parameters that describe how to configure
 	// the Destination. Parameters can be generated from DestinationConfig with
 	// paramgen.
+
 	return d.config.Parameters()
 }
 
@@ -45,26 +49,48 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	// can do them manually here.
 
 	sdk.Logger(ctx).Info().Msg("Configuring Destination...")
-	err := sdk.Util.ParseConfig(cfg, &d.config)
-	if err != nil {
-		return fmt.Errorf("invalid config: %w", err)
+	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
+		return fmt.Errorf("parse config: %w", err)
 	}
+
+	d.client, err = pinecone.NewIndexClient(
+		pinecone.WithIndexName("sample-movies"),
+		pinecone.WithEnvironment("gcp-starter"),
+		pinecone.WithProjectName("0ukv0hs"),
+		pinecone.WithAPIKey(ApiKey),
+	)
+
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) error {
-	// Open is called after Configure to signal the plugin it can prepare to
-	// start writing records. If needed, the plugin should open connections in
-	// this function.
+
+	d.writer, err = writer.New(ctx, &d.client, writer.Params{
+		DB:    db,
+		Table: d.config.Table,
+	})
+	if err != nil {
+		return fmt.Errorf("new writer: %w", err)
+	}
+
+	return nil
 	return nil
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	// Write writes len(r) records from r to the destination right away without
-	// caching. It should return the number of records written from r
-	// (0 <= n <= len(r)) and any error encountered that caused the write to
-	// stop early. Write must return a non-nil error if it returns n < len(r).
-	return 0, nil
+	for i, record := range records {
+		err := sdk.Util.Destination.Route(ctx, record,
+			d.writer.Upsert,
+			d.writer.Upsert,
+			d.writer.Delete,
+			d.writer.Upsert,
+		)
+		if err != nil {
+			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
+		}
+	}
+
+	return len(records), nil
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
