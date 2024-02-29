@@ -5,24 +5,16 @@ package destination
 import (
 	"context"
 	"fmt"
+	"github.com/conduitio-labs/conduit-connector-pinecone/config"
 	"github.com/conduitio-labs/conduit-connector-pinecone/writer"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	pinecone "github.com/nekomeowww/go-pinecone"
 )
 
 type Destination struct {
 	sdk.UnimplementedDestination
 
-	config Config
-	client pinecone.IndexClient
-	writer writer.Writer
-}
-
-type Config struct {
-	// Config includes parameters that are the same in the source and destination.
-	*Config
-	// DestinationConfigParam must be either yes or no (defaults to yes).
-	DestinationConfigParam string `validate:"inclusion=yes|no" default:"yes"`
+	config config.DestinationConfig
+	writer *writer.Writer
 }
 
 func NewDestination() sdk.Destination {
@@ -52,23 +44,13 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("parse config: %w", err)
 	}
-
-	d.client, err = pinecone.NewIndexClient(
-		pinecone.WithIndexName("sample-movies"),
-		pinecone.WithEnvironment("gcp-starter"),
-		pinecone.WithProjectName("0ukv0hs"),
-		pinecone.WithAPIKey(ApiKey),
-	)
-
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) error {
+	sdk.Logger(ctx).Info().Msg("Opening a Pinecone Destination...")
 
-	d.writer, err = writer.New(ctx, &d.client, writer.Params{
-		DB:    db,
-		Table: d.config.Table,
-	})
+	d.writer, err = writer.NewWriter(ctx, pineconeClient)
 	if err != nil {
 		return fmt.Errorf("new writer: %w", err)
 	}
