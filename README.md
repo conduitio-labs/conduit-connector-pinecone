@@ -57,6 +57,6 @@ This template provides two types of "configs":
 * general configuration (that applies to both, sources and destinations)
 * and source/destination specific configs.
 
-All are defined in `config.go` and are represented by separate types. General configs should be added to `connectorname.Config`,
-whereas any source or destination specific configs should be added to `connectorname.SourceConfig` and 
-`connectorname.DestinationConfig` respectively.
+All are defined in `config.go` and are represented by separate types. General configs should be added to `pinecone.Config`,
+whereas any source or destination specific configs should be added to `pinecone.SourceConfig` and 
+`pinecone.DestinationConfig` respectively.

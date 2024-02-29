@@ -1,4 +1,4 @@
-module github.com/conduitio/conduit-connector-connectorname
+module github.com/conduitio/conduit-connector-pinecone
 
 go 1.21
 
