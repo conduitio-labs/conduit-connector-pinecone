@@ -2,9 +2,13 @@ package writer
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/nekomeowww/go-pinecone"
+	"github.com/pkg/errors"
+	"math"
 	"strings"
 )
 
@@ -14,7 +18,7 @@ type Writer struct {
 }
 
 // NewWriter New creates new instance of the Writer.
-func NewWriter(ctx context.Context, client *pinecone.IndexClient) (*Writer, error) {
+func NewWriter(ctx context.Context) (*Writer, error) {
 
 	pineconeClient, err := NewPineconeClient(ctx)
 	if err != nil {
@@ -29,12 +33,23 @@ func NewWriter(ctx context.Context, client *pinecone.IndexClient) (*Writer, erro
 
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 
+	payload, err := bytesToFloat32s(record.Payload.After.Bytes())
+	if err != nil {
+		return fmt.Errorf("error converting data to []float32: %v", err)
+	}
+
+	record.Key.Un
+
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal payload to structured data: %w", err)
+	}
+
 	upsertParams := pinecone.UpsertVectorsParams{
 		Vectors: []*pinecone.Vector{
 			{
-				ID:       "YOUR_VECTOR_ID",
-				Values:   values,
-				Metadata: map[string]any{"foo": "bar"},
+				ID:       string(record.Key.Bytes()),
+				Values:   payload,
+				Metadata: record.Metadata,
 			},
 		},
 	}
@@ -44,28 +59,11 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 		fmt.Print(err)
 	}
 
+	return nil
 }
 
 // Delete deletes records by a key.
 func (w *Writer) Delete(ctx context.Context, record sdk.Record) error {
-	tableName := w.getTableName(record.Metadata)
-
-	keys, err := w.structurizeData(record.Key)
-	if err != nil {
-		return fmt.Errorf("structurize key: %w", err)
-	}
-
-	if len(keys) == 0 {
-		return ErrNoKey
-	}
-
-	query, args := w.buildDeleteQuery(tableName, keys)
-
-	_, err = w.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("exec delete: %w", err)
-	}
-
 	return nil
 }
 
@@ -106,4 +104,36 @@ func NewPineconeClient(ctx context.Context) (*pinecone.IndexClient, error) {
 
 	sdk.Logger(ctx).Trace().Msg("Successfully created a Pinecone Client...")
 	return client, nil
+}
+
+func bytesToFloat32s(data []byte) ([]float32, error) {
+	if len(data)%4 != 0 {
+		return nil, fmt.Errorf("the byte slice length must be a multiple of 4")
+	}
+
+	var floats []float32
+	for i := 0; i < len(data); i += 4 {
+		bits := binary.BigEndian.Uint32(data[i : i+4])
+		float := math.Float32frombits(bits)
+		floats = append(floats, float)
+	}
+
+	return floats, nil
+}
+
+func recordMetadata(record sdk.Record) (map[string]interface{}, error) {
+	data := record.Metadata
+
+	if data == nil || len(data.Bytes()) == 0 {
+		return nil, errors.New("empty payload")
+	}
+
+	properties := make(map[string]interface{})
+	err := json.Unmarshal(data.Bytes(), &properties)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload to structured data: %w", err)
+	}
+
+	return properties, nil
 }
