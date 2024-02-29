@@ -12,4 +12,4 @@ func TestTeardown_NoOpen(t *testing.T) {
 	con := NewDestination()
 	err := con.Teardown(context.Background())
 	is.NoErr(err)
-}a
+}
