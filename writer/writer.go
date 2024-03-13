@@ -2,13 +2,13 @@ package writer
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/conduitio-labs/conduit-connector-pinecone/config"
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/google/uuid"
 	"github.com/nekomeowww/go-pinecone"
 	"github.com/pkg/errors"
-	"math"
 	"strings"
 )
 
@@ -18,9 +18,10 @@ type Writer struct {
 }
 
 // NewWriter New creates new instance of the Writer.
-func NewWriter(ctx context.Context) (*Writer, error) {
+func NewWriter(ctx context.Context, config config.DestinationConfig) (*Writer, error) {
+	sdk.Logger(ctx).Trace().Msg("Creating new writer.")
 
-	pineconeClient, err := NewPineconeClient(ctx)
+	pineconeClient, err := NewPineconeClient(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pinecone pineconeClient: %v", err)
 	}
@@ -33,46 +34,66 @@ func NewWriter(ctx context.Context) (*Writer, error) {
 
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 
-	payload, err := bytesToFloat32s(record.Payload.After.Bytes())
+	ID := recordID(record.Key)
+
+	payload, err := recordPayload(record.Payload)
 	if err != nil {
-		return fmt.Errorf("error converting data to []float32: %v", err)
+		fmt.Printf("\n error getting payload: %v", err)
 	}
 
-	record.Key.Un
-
+	metadata, err := recordMetadata(record.Metadata)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal payload to structured data: %w", err)
+		fmt.Printf("\n error getting metadata: %v", err)
 	}
 
 	upsertParams := pinecone.UpsertVectorsParams{
 		Vectors: []*pinecone.Vector{
 			{
-				ID:       string(record.Key.Bytes()),
+				ID:       ID,
 				Values:   payload,
-				Metadata: record.Metadata,
+				Metadata: metadata,
 			},
 		},
 	}
 
-	UpsertResponse, err := client.UpsertVectors(ctx, upsertParams)
+	fmt.Printf("ID: %v \nPayload: %v \nmetadata: %v\n", ID, len(payload), metadata)
+
+	_, err = w.client.UpsertVectors(ctx, upsertParams)
 	if err != nil {
-		fmt.Print(err)
+		return fmt.Errorf("\n error upserting record: %v ", err)
 	}
 
+	sdk.Logger(ctx).Trace().Msg("Successful record upsert.")
 	return nil
 }
 
 // Delete deletes records by a key.
 func (w *Writer) Delete(ctx context.Context, record sdk.Record) error {
+
+	ID := []string{recordID(record.Key)}
+
+	deleteParams := pinecone.DeleteVectorsParams{
+		IDs:       ID,
+		Namespace: "",
+		DeleteAll: false,
+		Filter:    nil,
+	}
+
+	err := w.client.DeleteVectors(ctx, deleteParams)
+	if err != nil {
+		return fmt.Errorf("\n error deleting record: %v ", err)
+	}
+
+	sdk.Logger(ctx).Trace().Msg("Successful record delete.")
 	return nil
 }
 
 // NewPineconeClient takes the Pinecone Index URL string in Config and splits into respective parts to establish a
 // connection
-func NewPineconeClient(ctx context.Context) (*pinecone.IndexClient, error) {
-	sdk.Logger(ctx).Trace().Msg("Creating a Pinecone Client...")
+func NewPineconeClient(ctx context.Context, config config.DestinationConfig) (*pinecone.IndexClient, error) {
+	sdk.Logger(ctx).Trace().Msg("Creating a Pinecone Client.")
 
-	urlWithoutProtocol := strings.TrimPrefix(d.config.PineconeHostURL, "https://")
+	urlWithoutProtocol := strings.TrimPrefix(config.PineconeHostURL, "https://")
 	urlParts := strings.Split(urlWithoutProtocol, ".")
 
 	if len(urlParts) < 4 {
@@ -96,7 +117,7 @@ func NewPineconeClient(ctx context.Context) (*pinecone.IndexClient, error) {
 		pinecone.WithIndexName(indexName),
 		pinecone.WithEnvironment(environment),
 		pinecone.WithProjectName(projectName),
-		pinecone.WithAPIKey(d.config.PineconeAPIKey), // Use your actual API key
+		pinecone.WithAPIKey(config.PineconeAPIKey), // Use your actual API key
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Pinecone client: %v", err)
@@ -106,34 +127,37 @@ func NewPineconeClient(ctx context.Context) (*pinecone.IndexClient, error) {
 	return client, nil
 }
 
-func bytesToFloat32s(data []byte) ([]float32, error) {
-	if len(data)%4 != 0 {
-		return nil, fmt.Errorf("the byte slice length must be a multiple of 4")
-	}
-
-	var floats []float32
-	for i := 0; i < len(data); i += 4 {
-		bits := binary.BigEndian.Uint32(data[i : i+4])
-		float := math.Float32frombits(bits)
-		floats = append(floats, float)
-	}
-
-	return floats, nil
+func recordID(Key sdk.Data) string {
+	key := Key.Bytes()
+	return uuid.NewMD5(uuid.NameSpaceOID, key).String()
 }
 
-func recordMetadata(record sdk.Record) (map[string]interface{}, error) {
-	data := record.Metadata
+func recordPayload(payload sdk.Change) ([]float32, error) {
+
+	data := payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
 		return nil, errors.New("empty payload")
 	}
 
-	properties := make(map[string]interface{})
-	err := json.Unmarshal(data.Bytes(), &properties)
+	var unmarshalledPayload []float32
 
+	err := json.Unmarshal(data.Bytes(), &unmarshalledPayload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal payload to structured data: %w", err)
+		return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
 	}
 
-	return properties, nil
+	var floats []float32
+	for _, value := range unmarshalledPayload {
+		floats = append(floats, value)
+	}
+	return floats, nil
+}
+
+func recordMetadata(data sdk.Metadata) (map[string]any, error) {
+	convertedMap := make(map[string]any, len(data))
+	for key, value := range data {
+		convertedMap[key] = value
+	}
+	return convertedMap, nil
 }

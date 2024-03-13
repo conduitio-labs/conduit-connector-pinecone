@@ -50,7 +50,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 func (d *Destination) Open(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("Opening a Pinecone Destination...")
 
-	newWriter, err := writer.NewWriter(ctx)
+	newWriter, err := writer.NewWriter(ctx, d.config)
 	if err != nil {
 		return fmt.Errorf("new writer: %w", err)
 	}

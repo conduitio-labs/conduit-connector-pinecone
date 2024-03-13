@@ -7,8 +7,10 @@ toolchain go1.21.1
 require (
 	github.com/conduitio/conduit-connector-sdk v0.8.0
 	github.com/golangci/golangci-lint v1.56.0
+	github.com/google/uuid v1.4.0
 	github.com/matryer/is v1.4.1
 	github.com/nekomeowww/go-pinecone v0.1.0
+	github.com/pkg/errors v0.9.1
 )
 
 require (
@@ -86,7 +88,6 @@ require (
 	github.com/golangci/unconvert v0.0.0-20180507085042-28b1c447d1f4 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
-	github.com/google/uuid v1.4.0 // indirect
 	github.com/gordonklaus/ineffassign v0.1.0 // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
 	github.com/gostaticanalysis/comment v1.4.2 // indirect
