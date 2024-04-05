@@ -1,4 +1,4 @@
-package destination
+package pinecone
 
 import (
 	"context"

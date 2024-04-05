@@ -1,20 +1,25 @@
-package destination
+package pinecone
 
 //go:generate paramgen -output=paramgen_dest.go DestinationConfig
 
 import (
 	"context"
 	"fmt"
-	"github.com/conduitio-labs/conduit-connector-pinecone/config"
-	"github.com/conduitio-labs/conduit-connector-pinecone/writer"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
 
 type Destination struct {
 	sdk.UnimplementedDestination
 
-	config config.DestinationConfig
-	writer *writer.Writer
+	config DestinationConfig
+	writer *Writer
+}
+
+type DestinationConfig struct {
+	// Pinecone API key.
+	PineconeAPIKey string `json:"pinecone.apiKey" validate:"required"`
+	// Host URL for Pinecone index.
+	PineconeHostURL string `json:"pinecone.hostURL" validate:"required"`
 }
 
 func NewDestination() sdk.Destination {
@@ -27,7 +32,18 @@ func (d *Destination) Parameters() map[string]sdk.Parameter {
 	// the Destination. Parameters can be generated from DestinationConfig with
 	// paramgen.
 
-	return d.config.Parameters()
+	return map[string]sdk.Parameter{
+		"Pinecone API Key": {
+			Default:     "",
+			Description: "API Key for authenticating with Pinecone.",
+			Validations: []sdk.Validation{sdk.ValidationRequired{}},
+		},
+		"Pinecone Host URL": {
+			Default:     "",
+			Description: "The Pinecone index host URL",
+			Validations: []sdk.Validation{sdk.ValidationRequired{}},
+		},
+	}
 }
 
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
@@ -40,19 +56,26 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	// before calling Configure. If you need to do more complex validations you
 	// can do them manually here.
 
-	sdk.Logger(ctx).Info().Msg("Configuring Destination...")
-	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
-		return fmt.Errorf("parse config: %w", err)
+	sdk.Logger(ctx).Info().Msg("Configuring Pinecone Destination...")
+	var config DestinationConfig
+
+	if err := sdk.Util.ParseConfig(cfg, &config); err != nil {
+		return fmt.Errorf("invalid config: %w", err)
 	}
+
+	d.config.PineconeAPIKey = cfg["Pinecone API Key"]
+	d.config.PineconeHostURL = cfg["Pinecone Host URL"]
+
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("Opening a Pinecone Destination...")
 
-	newWriter, err := writer.NewWriter(ctx, d.config)
+	newWriter, err := NewWriter(ctx, d.config)
 	if err != nil {
-		return fmt.Errorf("new writer: %w", err)
+		sdk.Logger(ctx).Error().Msgf("REACHED")
+		return fmt.Errorf("error creating a new writer: %w", err)
 	}
 	d.writer = newWriter
 
@@ -60,6 +83,7 @@ func (d *Destination) Open(ctx context.Context) error {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	sdk.Logger(ctx).Info().Msg("Writing to Pinecone...")
 	for i, record := range records {
 		err := sdk.Util.Destination.Route(ctx, record,
 			d.writer.Upsert,
@@ -79,5 +103,6 @@ func (d *Destination) Teardown(ctx context.Context) error {
 	// Teardown signals to the plugin that all records were written and there
 	// will be no more calls to any other function. After Teardown returns, the
 	// plugin should be ready for a graceful shutdown.
+	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
 	return nil
 }
