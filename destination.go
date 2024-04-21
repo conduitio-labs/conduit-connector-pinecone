@@ -16,46 +16,17 @@ type Destination struct {
 }
 
 type DestinationConfig struct {
-	// Pinecone API key.
+	// PineconeAPIKey is the API Key for authenticating with Pinecone.
 	PineconeAPIKey string `json:"pinecone.apiKey" validate:"required"`
-	// Host URL for Pinecone index.
+	// PineconeHostURL is the Pinecone index host URL
 	PineconeHostURL string `json:"pinecone.hostURL" validate:"required"`
 }
 
 func NewDestination() sdk.Destination {
-	// Create Destination and wrap it in the default middleware.
 	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
 }
 
-func (d *Destination) Parameters() map[string]sdk.Parameter {
-	// Parameters is a map of named Parameters that describe how to configure
-	// the Destination. Parameters can be generated from DestinationConfig with
-	// paramgen.
-
-	return map[string]sdk.Parameter{
-		"Pinecone API Key": {
-			Default:     "",
-			Description: "API Key for authenticating with Pinecone.",
-			Validations: []sdk.Validation{sdk.ValidationRequired{}},
-		},
-		"Pinecone Host URL": {
-			Default:     "",
-			Description: "The Pinecone index host URL",
-			Validations: []sdk.Validation{sdk.ValidationRequired{}},
-		},
-	}
-}
-
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	// Configure is the first function to be called in a connector. It provides
-	// the connector with the configuration that can be validated and stored.
-	// In case the configuration is not valid it should return an error.
-	// Testing if your connector can reach the configured data source should be
-	// done in Open, not in Configure.
-	// The SDK will validate the configuration and populate default values
-	// before calling Configure. If you need to do more complex validations you
-	// can do them manually here.
-
 	sdk.Logger(ctx).Info().Msg("Configuring Pinecone Destination...")
 	var config DestinationConfig
 
@@ -100,9 +71,6 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
-	// Teardown signals to the plugin that all records were written and there
-	// will be no more calls to any other function. After Teardown returns, the
-	// plugin should be ready for a graceful shutdown.
 	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
 	return nil
 }

@@ -12,6 +12,7 @@ require (
 	github.com/nekomeowww/go-pinecone v0.1.0
 	github.com/pinecone-io/go-pinecone v0.4.1
 	github.com/pkg/errors v0.9.1
+	google.golang.org/protobuf v1.32.0
 )
 
 require (
@@ -230,7 +231,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240221002015-b0ce06bbee7c // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240221002015-b0ce06bbee7c // indirect
 	google.golang.org/grpc v1.62.0 // indirect
-	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 // indirect
