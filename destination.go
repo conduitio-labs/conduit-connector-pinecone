@@ -26,7 +26,7 @@ type DestinationConfig struct {
 func (d DestinationConfig) toMap() map[string]string {
 	return map[string]string{
 		"pinecone.apiKey":  d.PineconeAPIKey,
-		"pinecone.hostURL": d.PineconeAPIKey,
+		"pinecone.hostURL": d.PineconeHostURL,
 	}
 }
 
@@ -36,14 +36,9 @@ func NewDestination() sdk.Destination {
 
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
 	sdk.Logger(ctx).Info().Msg("Configuring Pinecone Destination...")
-	var config DestinationConfig
-
-	if err := sdk.Util.ParseConfig(cfg, &config); err != nil {
+	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
-
-	d.config.PineconeAPIKey = cfg["Pinecone API Key"]
-	d.config.PineconeHostURL = cfg["Pinecone Host URL"]
 
 	return nil
 }
@@ -79,7 +74,6 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 
 func (d *Destination) Teardown(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
-	
 
 	return d.writer.Close()
 }
