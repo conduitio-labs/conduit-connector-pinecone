@@ -57,7 +57,6 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	is.NoErr(err)
 
 	index := createIndex(is)
-
 	assertWrittenRecord(is, ctx, index, id, rec)
 }
 

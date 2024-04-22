@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/google/uuid"
 	"github.com/pinecone-io/go-pinecone/pinecone"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -38,10 +37,7 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 }
 
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
-
 	ID := recordID(record.Key)
-
-	sdk.Logger(ctx).Error().Msgf("LE PAYLOAD: %v", record.Payload.After)
 
 	payload, err := recordPayload(record.Payload)
 	if err != nil {
@@ -67,7 +63,7 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 		return fmt.Errorf("error upserting record: %v ", err)
 	}
 
-	sdk.Logger(ctx).Trace().Msg("Successful record upsert.")
+	sdk.Logger(ctx).Trace().Msg("upserted record")
 	return nil
 }
 
@@ -115,11 +111,12 @@ func NewPineconeClient(ctx context.Context, config DestinationConfig) (*pinecone
 
 func recordID(Key sdk.Data) string {
 	key := Key.Bytes()
-	return uuid.NewMD5(uuid.NameSpaceOID, key).String()
+	return string(key)
 }
 
 func recordPayload(payload sdk.Change) ([]float32, error) {
 	data := payload.After
+
 	if data == nil || len(data.Bytes()) == 0 {
 		return nil, errors.New("empty payload")
 	}
