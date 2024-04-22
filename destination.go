@@ -18,8 +18,16 @@ type Destination struct {
 type DestinationConfig struct {
 	// PineconeAPIKey is the API Key for authenticating with Pinecone.
 	PineconeAPIKey string `json:"pinecone.apiKey" validate:"required"`
+
 	// PineconeHostURL is the Pinecone index host URL
 	PineconeHostURL string `json:"pinecone.hostURL" validate:"required"`
+}
+
+func (d DestinationConfig) toMap() map[string]string {
+	return map[string]string{
+		"pinecone.apiKey":  d.PineconeAPIKey,
+		"pinecone.hostURL": d.PineconeAPIKey,
+	}
 }
 
 func NewDestination() sdk.Destination {
@@ -45,7 +53,6 @@ func (d *Destination) Open(ctx context.Context) error {
 
 	newWriter, err := NewWriter(ctx, d.config)
 	if err != nil {
-		sdk.Logger(ctx).Error().Msgf("REACHED")
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
 	d.writer = newWriter
@@ -54,7 +61,6 @@ func (d *Destination) Open(ctx context.Context) error {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	sdk.Logger(ctx).Info().Msg("Writing to Pinecone...")
 	for i, record := range records {
 		err := sdk.Util.Destination.Route(ctx, record,
 			d.writer.Upsert,
@@ -65,6 +71,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 		if err != nil {
 			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
 		}
+		sdk.Logger(ctx).Trace().Msg("wrote record")
 	}
 
 	return len(records), nil
@@ -72,5 +79,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 
 func (d *Destination) Teardown(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
-	return nil
+	
+
+	return d.writer.Close()
 }
