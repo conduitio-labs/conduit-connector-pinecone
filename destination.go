@@ -16,29 +16,55 @@ type Destination struct {
 }
 
 type DestinationConfig struct {
-	// PineconeAPIKey is the API Key for authenticating with Pinecone.
+	// Pinecone API key.
 	PineconeAPIKey string `json:"pinecone.apiKey" validate:"required"`
-
-	// PineconeHostURL is the Pinecone index host URL
+	// Host URL for Pinecone index.
 	PineconeHostURL string `json:"pinecone.hostURL" validate:"required"`
 }
 
-func (d DestinationConfig) toMap() map[string]string {
-	return map[string]string{
-		"pinecone.apiKey":  d.PineconeAPIKey,
-		"pinecone.hostURL": d.PineconeHostURL,
-	}
-}
-
 func NewDestination() sdk.Destination {
+	// Create Destination and wrap it in the default middleware.
 	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
 }
 
+func (d *Destination) Parameters() map[string]sdk.Parameter {
+	// Parameters is a map of named Parameters that describe how to configure
+	// the Destination. Parameters can be generated from DestinationConfig with
+	// paramgen.
+
+	return map[string]sdk.Parameter{
+		"Pinecone API Key": {
+			Default:     "",
+			Description: "API Key for authenticating with Pinecone.",
+			Validations: []sdk.Validation{sdk.ValidationRequired{}},
+		},
+		"Pinecone Host URL": {
+			Default:     "",
+			Description: "The Pinecone index host URL",
+			Validations: []sdk.Validation{sdk.ValidationRequired{}},
+		},
+	}
+}
+
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
+	// Configure is the first function to be called in a connector. It provides
+	// the connector with the configuration that can be validated and stored.
+	// In case the configuration is not valid it should return an error.
+	// Testing if your connector can reach the configured data source should be
+	// done in Open, not in Configure.
+	// The SDK will validate the configuration and populate default values
+	// before calling Configure. If you need to do more complex validations you
+	// can do them manually here.
+
 	sdk.Logger(ctx).Info().Msg("Configuring Pinecone Destination...")
-	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
+	var config DestinationConfig
+
+	if err := sdk.Util.ParseConfig(cfg, &config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+
+	d.config.PineconeAPIKey = cfg["Pinecone API Key"]
+	d.config.PineconeHostURL = cfg["Pinecone Host URL"]
 
 	return nil
 }
@@ -48,6 +74,7 @@ func (d *Destination) Open(ctx context.Context) error {
 
 	newWriter, err := NewWriter(ctx, d.config)
 	if err != nil {
+		sdk.Logger(ctx).Error().Msgf("REACHED")
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
 	d.writer = newWriter
@@ -56,6 +83,7 @@ func (d *Destination) Open(ctx context.Context) error {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	sdk.Logger(ctx).Info().Msg("Writing to Pinecone...")
 	for i, record := range records {
 		err := sdk.Util.Destination.Route(ctx, record,
 			d.writer.Upsert,
@@ -66,14 +94,15 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 		if err != nil {
 			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
 		}
-		sdk.Logger(ctx).Trace().Msg("wrote record")
 	}
 
 	return len(records), nil
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
+	// Teardown signals to the plugin that all records were written and there
+	// will be no more calls to any other function. After Teardown returns, the
+	// plugin should be ready for a graceful shutdown.
 	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
-
-	return d.writer.Close()
+	return nil
 }
