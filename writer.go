@@ -39,7 +39,7 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	ID := recordID(record.Key)
 
-	payload, err := recordPayload(record.Payload)
+	payload, err := parseRecordPayload(record.Payload)
 	if err != nil {
 		return fmt.Errorf("error getting payload: %v", err)
 	}
@@ -52,9 +52,9 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	sdk.Logger(ctx).Error().Msgf("metadata: %v", metadata)
 
 	vector := []*pinecone.Vector{{
-		Id:     ID,
-		Values: payload,
-		SparseValues: nil,
+		Id:           ID,
+		Values:       payload.Values,
+		SparseValues: payload.PineconeSparseValues(),
 		Metadata:     metadata,
 	}}
 
@@ -114,21 +114,34 @@ func recordID(Key sdk.Data) string {
 	return string(key)
 }
 
-func recordPayload(payload sdk.Change) ([]float32, error) {
+type recordPayload struct {
+	Values       []float32    `json:"values"`
+	SparseValues sparseValues `json:"sparse_values"`
+}
+
+func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
+	v := &pinecone.SparseValues{r.SparseValues.Indices, r.SparseValues.Values}
+	return v
+}
+
+type sparseValues struct {
+	Indices []uint32  `json:"indices"`
+	Values  []float32 `json:"values"`
+}
+
+func parseRecordPayload(payload sdk.Change) (parsed recordPayload, err error) {
 	data := payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
-		return nil, errors.New("empty payload")
+		return parsed, errors.New("empty payload")
 	}
 
-	var parsedPayload []float32
-
-	err := json.Unmarshal(data.Bytes(), &parsedPayload)
+	err = json.Unmarshal(data.Bytes(), &parsed)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
+		return parsed, fmt.Errorf("error unmarshalling JSON: %v", err)
 	}
 
-	return parsedPayload, nil
+	return parsed, nil
 }
 
 func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {

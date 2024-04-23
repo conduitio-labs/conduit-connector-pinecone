@@ -38,7 +38,13 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	defer teardown(is, ctx, dest)
 
 	id := uuid.NewString()
-	payload, err := json.Marshal([]float32{1, 1})
+	payload, err := json.Marshal(recordPayload{
+		Values: []float32{1, 2},
+		SparseValues: sparseValues{
+			Indices: []uint32{1, 2},
+			Values:  []float32{1, 2},
+		},
+	})
 	is.NoErr(err)
 
 	metadata := map[string]string{
@@ -83,10 +89,12 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 		is.Fail() // vector not found
 	}
 
-	recVecValues, err := recordPayload(rec.Payload)
+	recVecValues, err := parseRecordPayload(rec.Payload)
 	is.NoErr(err)
 
-	is.Equal(vec.Values, recVecValues)
+	is.Equal(vec.Values, recVecValues.Values)
+	is.Equal(vec.SparseValues.Indices, recVecValues.SparseValues.Indices)
+	is.Equal(vec.SparseValues.Values, recVecValues.SparseValues.Values)
 }
 
 func TestMain(t *testing.M) {
