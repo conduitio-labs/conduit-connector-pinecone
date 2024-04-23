@@ -134,7 +134,9 @@ func recordPayload(payload sdk.Change) ([]float32, error) {
 func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
 	convertedMap := make(map[string]interface{})
 	for key, value := range data {
-		convertedMap[key] = value
+		if trimmed, hasPrefix := trimPineconeKey(key); hasPrefix {
+			convertedMap[trimmed] = value
+		}
 	}
 	metadata, err := structpb.NewStruct(convertedMap)
 	if err != nil {
@@ -142,4 +144,14 @@ func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
 	}
 
 	return metadata, nil
+}
+
+var keyPrefix = "pinecone."
+
+func trimPineconeKey(key string) (trimmed string, hasPrefix bool) {
+	if strings.HasPrefix(key, keyPrefix) {
+		return key[len(keyPrefix):], true
+	}
+
+	return key, false
 }
