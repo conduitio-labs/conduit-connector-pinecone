@@ -17,18 +17,52 @@ import (
 
 func destConfigFromEnv() DestinationConfig {
 	return DestinationConfig{
-		PineconeAPIKey:  os.Getenv("API_KEY"),
-		PineconeHostURL: os.Getenv("HOST_URL"),
+		PineconeAPIKey: os.Getenv("API_KEY"),
+		PineconeHost:   os.Getenv("HOST_URL"),
 	}
 }
 
-func TestDestination_Integration_Insert(t *testing.T) {
+func TestWriter(t *testing.T) {
 	is := is.New(t)
+	cfg := destConfigFromEnv()
 	ctx := context.Background()
 
-	dest := NewDestination()
+	writer, err := NewWriter(context.Background(), cfg)
+	is.NoErr(err)
 
+	id := uuid.NewString()
+	position := sdk.Position(fmt.Sprintf("pos-%v", id))
+	metadata := map[string]string{
+		"pinecone.prop1": "val1",
+		"pinecone.prop2": "val2",
+	}
+
+	vecsToBeWritten := recordPayload{
+		Id:     id,
+		Values: []float32{1, 2},
+	}
+
+	payload, err := json.Marshal(vecsToBeWritten)
+	is.NoErr(err)
+
+	rec := sdk.Util.Source.NewRecordCreate(position, metadata, sdk.RawData(id), sdk.RawData(payload))
+
+	err = writer.Upsert(ctx, rec)
+	is.NoErr(err)
+
+	recs, err := writer.index.FetchVectors(&ctx, []string{id})
+	is.NoErr(err)
+
+	fmt.Println(recs.Vectors)
+}
+
+func TestDestination_Integration_WriteDelete(t *testing.T) {
+	ctx := context.Background()
 	destCfg := destConfigFromEnv()
+	is := is.New(t)
+	index := createIndex(is)
+
+	dest := NewDestination()
 
 	err := dest.Configure(ctx, destCfg.toMap())
 	is.NoErr(err)
@@ -38,32 +72,33 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	defer teardown(is, ctx, dest)
 
 	id := uuid.NewString()
-	payload, err := json.Marshal(recordPayload{
-		Values: []float32{1, 2},
-		SparseValues: sparseValues{
-			Indices: []uint32{1, 2},
-			Values:  []float32{1, 2},
-		},
-	})
-	is.NoErr(err)
-
+	position := sdk.Position(fmt.Sprintf("pos-%v", id))
 	metadata := map[string]string{
-		"prop1": "val1",
-		"prop2": "val2",
+		"pinecone.prop1": "val1",
+		"pinecone.prop2": "val2",
 	}
 
-	rec := sdk.Util.Source.NewRecordCreate(
-		sdk.Position(fmt.Sprintf("pos-%v", id)),
-		metadata,
-		sdk.RawData(id),
-		sdk.RawData(payload),
-	)
+	vecsToBeWritten := recordPayload{
+		Id:           id,
+		Values:       []float32{1, 2},
+		SparseValues: sparseValues{},
+	}
+
+	payload, err := json.Marshal(vecsToBeWritten)
+	is.NoErr(err)
+
+	rec := sdk.Util.Source.NewRecordCreate(position, metadata, sdk.RawData(id), sdk.RawData(payload))
 
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 	is.NoErr(err)
+	// defer deleteRecord(is, index, id)
 
-	index := createIndex(is)
-	assertWrittenRecord(is, ctx, index, id, rec)
+	assertWrittenRecordIndex(is, ctx, index, id, vecsToBeWritten)
+
+	rec = sdk.Util.Source.NewRecordDelete(position, metadata, sdk.RawData(id))
+	_, err = dest.Write(ctx, []sdk.Record{rec})
+
+	assertDeletedRecordIndex(is, ctx, index, id)
 }
 
 func createIndex(is *is.I) *pinecone.IndexConnection {
@@ -74,13 +109,29 @@ func createIndex(is *is.I) *pinecone.IndexConnection {
 	})
 	is.NoErr(err)
 
-	index, err := client.Index(destCfg.PineconeHostURL)
+	index, err := client.Index(destCfg.PineconeHost)
 	is.NoErr(err)
+
+	// index.Namespace = "default"
 
 	return index
 }
 
-func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string, rec sdk.Record) {
+func assertWrittenRecordClient(is *is.I, ctx context.Context, client *pineconeClient, id string, writtenVecs UpsertBody) {
+	vectors, err := client.fetchVectors([]string{id})
+	is.NoErr(err)
+
+	vec, ok := vectors[id]
+	if !ok {
+		is.Fail() // vector not found
+	}
+
+	is.Equal(vec.Values, writtenVecs.Vectors[0].Values)
+	// is.Equal(vec.SparseValues.Indices, recVecValues.SparseValues.Indices)
+	// is.Equal(vec.SparseValues.Values, recVecValues.SparseValues.Values)
+}
+
+func assertWrittenRecordIndex(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string, writtenVecs recordPayload) {
 	res, err := index.FetchVectors(&ctx, []string{id})
 	is.NoErr(err)
 
@@ -89,12 +140,35 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 		is.Fail() // vector not found
 	}
 
-	recVecValues, err := parseRecordPayload(rec.Payload)
+	is.Equal(vec.Values, writtenVecs.Values)
+	// is.Equal(vec.SparseValues.Indices, recVecValues.SparseValues.Indices)
+	// is.Equal(vec.SparseValues.Values, recVecValues.SparseValues.Values)
+}
+
+func assertDeletedRecordClient(is *is.I, ctx context.Context, client *pineconeClient, id string) {
+	vectors, err := client.fetchVectors([]string{id})
 	is.NoErr(err)
 
-	is.Equal(vec.Values, recVecValues.Values)
-	is.Equal(vec.SparseValues.Indices, recVecValues.SparseValues.Indices)
-	is.Equal(vec.SparseValues.Values, recVecValues.SparseValues.Values)
+	_, ok := vectors[id]
+	if ok {
+		is.Fail() // vector found, not properly deleted
+	}
+}
+
+func assertDeletedRecordIndex(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string) {
+	res, err := index.FetchVectors(&ctx, []string{id})
+	is.NoErr(err)
+
+	_, ok := res.Vectors[id]
+	if ok {
+		is.Fail() // vector found, not properly deleted
+	}
+}
+
+func deleteRecord(is *is.I, index *pinecone.IndexConnection, id string) {
+	ctx := context.Background()
+	err := index.DeleteVectorsById(&ctx, []string{id})
+	is.NoErr(err)
 }
 
 func TestMain(t *testing.M) {

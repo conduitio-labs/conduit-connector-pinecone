@@ -12,6 +12,7 @@ type Destination struct {
 	sdk.UnimplementedDestination
 
 	config DestinationConfig
+	client *pineconeClient
 	writer *Writer
 }
 
@@ -19,14 +20,14 @@ type DestinationConfig struct {
 	// PineconeAPIKey is the API Key for authenticating with Pinecone.
 	PineconeAPIKey string `json:"pinecone.apiKey" validate:"required"`
 
-	// PineconeHostURL is the Pinecone index host URL
-	PineconeHostURL string `json:"pinecone.hostURL" validate:"required"`
+	// PineconeHost is the Pinecone index host URL
+	PineconeHost string `json:"pinecone.host" validate:"required"`
 }
 
 func (d DestinationConfig) toMap() map[string]string {
 	return map[string]string{
-		"pinecone.apiKey":  d.PineconeAPIKey,
-		"pinecone.hostURL": d.PineconeHostURL,
+		"pinecone.apiKey": d.PineconeAPIKey,
+		"pinecone.host":   d.PineconeHost,
 	}
 }
 
@@ -35,22 +36,24 @@ func NewDestination() sdk.Destination {
 }
 
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring Pinecone Destination...")
 	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
 
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) error {
-	sdk.Logger(ctx).Info().Msg("Opening a Pinecone Destination...")
-
 	newWriter, err := NewWriter(ctx, d.config)
 	if err != nil {
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
 	d.writer = newWriter
+
+	d.client = newPineconeClient(d.config)
+
+	sdk.Logger(ctx).Info().Msg("created pinecone destination")
 
 	return nil
 }
