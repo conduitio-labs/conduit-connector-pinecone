@@ -19,8 +19,10 @@ type Writer struct {
 }
 
 func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
-	client, err := pinecone.NewClient(pinecone.NewClientParams{
-		ApiKey: config.PineconeAPIKey,
+	var w Writer
+	var err error
+	w.client, err = pinecone.NewClient(pinecone.NewClientParams{
+		ApiKey: config.APIKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating Pinecone client: %v", err)
@@ -28,19 +30,22 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	sdk.Logger(ctx).Info().Msg("created pinecone client")
 
 	// index urls should have their protocol trimmed
-	host := strings.TrimPrefix(config.PineconeHost, "https://")
+	host := strings.TrimPrefix(config.Host, "https://")
 
-	index, err := client.Index(host)
-	if err != nil {
-		return nil, fmt.Errorf("error establishing index connection: %v", err)
+	if config.Namespace != "" {
+		w.index, err = w.client.IndexWithNamespace(host, config.Namespace)
+		if err != nil {
+			return nil, fmt.Errorf("error establishing index connection: %v", err)
+		}
+	} else {
+		w.index, err = w.client.Index(host)
+		if err != nil {
+			return nil, fmt.Errorf("error establishing index connection: %v", err)
+		}
 	}
 	sdk.Logger(ctx).Info().Msg("created pinecone index")
 
-	writer := &Writer{
-		client: client,
-		index:  index,
-	}
-	return writer, nil
+	return &w, nil
 }
 
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
