@@ -98,7 +98,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	deleteAllRecords(is, dest.writer.index)
 }
 
-const maxRetries = 3
+const maxRetries = 4
 
 func waitTime(i int) time.Duration {
 	wait := math.Pow(2, float64(i))
