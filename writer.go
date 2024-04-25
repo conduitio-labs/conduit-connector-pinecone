@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package pinecone
 
 import (
@@ -25,7 +39,7 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 		ApiKey: config.APIKey,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error creating Pinecone client: %v", err)
+		return nil, fmt.Errorf("error creating Pinecone client: %w", err)
 	}
 	sdk.Logger(ctx).Info().Msg("created pinecone client")
 
@@ -35,12 +49,12 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	if config.Namespace != "" {
 		w.index, err = w.client.IndexWithNamespace(host, config.Namespace)
 		if err != nil {
-			return nil, fmt.Errorf("error establishing index connection: %v", err)
+			return nil, fmt.Errorf("error establishing index connection: %w", err)
 		}
 	} else {
 		w.index, err = w.client.Index(host)
 		if err != nil {
-			return nil, fmt.Errorf("error establishing index connection: %v", err)
+			return nil, fmt.Errorf("error establishing index connection: %w", err)
 		}
 	}
 	sdk.Logger(ctx).Info().Msg("created pinecone index")
@@ -53,15 +67,16 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 
 	payload, err := parseRecordPayload(record.Payload)
 	if err != nil {
-		return fmt.Errorf("error getting payload: %v", err)
+		return fmt.Errorf("error getting payload: %w", err)
 	}
 
 	metadata, err := recordMetadata(record.Metadata)
 	if err != nil {
-		return fmt.Errorf("error getting metadata: %v", err)
+		return fmt.Errorf("error getting metadata: %w", err)
 	}
 
 	vec := &pinecone.Vector{
+		//revive:disable-next-line
 		Id:     id,
 		Values: payload.Values,
 		// SparseValues: payload.PineconeSparseValues(),
@@ -70,7 +85,7 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 
 	_, err = w.index.UpsertVectors(&ctx, []*pinecone.Vector{vec})
 	if err != nil {
-		return fmt.Errorf("error upserting record: %v ", err)
+		return fmt.Errorf("error upserting record: %w", err)
 	}
 	sdk.Logger(ctx).Trace().Msgf("upserted record id %s", id)
 
@@ -84,7 +99,7 @@ func (w *Writer) Delete(ctx context.Context, record sdk.Record) error {
 
 	err := w.index.DeleteVectorsById(&ctx, ids)
 	if err != nil {
-		return fmt.Errorf("error deleting record: %v", err)
+		return fmt.Errorf("error deleting record: %w", err)
 	}
 	sdk.Logger(ctx).Trace().Msgf("deleted record %v", id)
 
@@ -92,7 +107,11 @@ func (w *Writer) Delete(ctx context.Context, record sdk.Record) error {
 }
 
 func (w *Writer) Close() error {
-	return w.index.Close()
+	if err := w.index.Close(); err != nil {
+		return fmt.Errorf("error closing writer: %w", err)
+	}
+
+	return nil
 }
 
 func recordID(key sdk.Data) string {
@@ -105,7 +124,7 @@ type sparseValues struct {
 }
 
 type recordPayload struct {
-	Id           string       `json:"id"`
+	ID           string       `json:"id"`
 	Values       []float32    `json:"values"`
 	SparseValues sparseValues `json:"sparse_values,omitempty"`
 	Namespace    string       `json:"namespace"`
@@ -118,7 +137,10 @@ func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
 		return nil
 	}
 
-	v := &pinecone.SparseValues{r.SparseValues.Indices, r.SparseValues.Values}
+	v := &pinecone.SparseValues{
+		Indices: r.SparseValues.Indices,
+		Values:  r.SparseValues.Values,
+	}
 	return v
 }
 
@@ -131,7 +153,7 @@ func parseRecordPayload(payload sdk.Change) (parsed recordPayload, err error) {
 
 	err = json.Unmarshal(data.Bytes(), &parsed)
 	if err != nil {
-		return parsed, fmt.Errorf("error unmarshalling JSON: %v", err)
+		return parsed, fmt.Errorf("error unmarshalling JSON: %w", err)
 	}
 
 	return parsed, nil
@@ -146,7 +168,7 @@ func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
 	}
 	metadata, err := structpb.NewStruct(convertedMap)
 	if err != nil {
-		return nil, fmt.Errorf("error creating metadata: %v", err)
+		return nil, fmt.Errorf("error creating metadata: %w", err)
 	}
 
 	return metadata, nil
