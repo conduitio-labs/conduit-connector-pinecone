@@ -25,5 +25,11 @@ func (DestinationConfig) Parameters() map[string]sdk.Parameter {
 				sdk.ValidationRequired{},
 			},
 		},
+		"pinecone.namespace": {
+			Default:     "",
+			Description: "pinecone.namespace is the Pinecone's index namespace. Defaults to the empty namespace.",
+			Type:        sdk.ParameterTypeString,
+			Validations: []sdk.Validation{},
+		},
 	}
 }
