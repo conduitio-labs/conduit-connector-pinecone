@@ -78,6 +78,10 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	vecsToBeWritten := recordPayload{
 		ID:     id,
 		Values: []float32{1, 2},
+		SparseValues: sparseValues{
+			Indices: []uint32{3, 5},
+			Values:  []float32{0.5, 0.3},
+		},
 	}
 
 	payload, err := json.Marshal(vecsToBeWritten)
@@ -126,6 +130,8 @@ func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index
 		}
 
 		is.Equal(vec.Values, writtenVecs.Values)
+		is.Equal(vec.SparseValues.Values, writtenVecs.SparseValues.Values)
+		is.Equal(vec.SparseValues.Indices, writtenVecs.SparseValues.Indices)
 		break
 	}
 }
