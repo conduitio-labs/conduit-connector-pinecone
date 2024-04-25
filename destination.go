@@ -67,12 +67,11 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	return nil
 }
 
-func (d *Destination) Open(ctx context.Context) error {
-	newWriter, err := NewWriter(ctx, d.config)
+func (d *Destination) Open(ctx context.Context) (err error) {
+	d.writer, err = NewWriter(ctx, d.config)
 	if err != nil {
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
-	d.writer = newWriter
 
 	sdk.Logger(ctx).Info().Msg("created pinecone destination")
 

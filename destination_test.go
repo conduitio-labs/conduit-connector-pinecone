@@ -30,16 +30,26 @@ import (
 	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
-func destConfigFromEnv() DestinationConfig {
+func destConfigFromEnv(t *testing.T) DestinationConfig {
 	return DestinationConfig{
-		APIKey: os.Getenv("API_KEY"),
-		Host:   os.Getenv("HOST_URL"),
+		APIKey: requiredEnv(t, "API_KEY"),
+		Host:   requiredEnv(t, "HOST_URL"),
 	}
+}
+
+func requiredEnv(t *testing.T, key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		t.Fatalf("env var %v unset", key)
+	}
+
+	return val
 }
 
 func TestDestination_NamespaceSet(t *testing.T) {
 	ctx := context.Background()
-	destCfg := destConfigFromEnv()
+	destCfg := destConfigFromEnv(t)
+	// we use the default namespace on all other tests, so it's correct to set it here
 	destCfg.Namespace = "test-namespace"
 
 	is := is.New(t)
@@ -57,7 +67,7 @@ func TestDestination_NamespaceSet(t *testing.T) {
 
 func TestDestination_Integration_WriteDelete(t *testing.T) {
 	ctx := context.Background()
-	destCfg := destConfigFromEnv()
+	destCfg := destConfigFromEnv(t)
 	is := is.New(t)
 	dest := newDestination()
 
