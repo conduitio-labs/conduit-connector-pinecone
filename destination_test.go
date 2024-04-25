@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -17,9 +18,27 @@ import (
 
 func destConfigFromEnv() DestinationConfig {
 	return DestinationConfig{
-		PineconeAPIKey: os.Getenv("API_KEY"),
-		PineconeHost:   os.Getenv("HOST_URL"),
+		APIKey: os.Getenv("API_KEY"),
+		Host:   os.Getenv("HOST_URL"),
 	}
+}
+
+func TestDestination_NamespaceSet(t *testing.T) {
+	ctx := context.Background()
+	destCfg := destConfigFromEnv()
+	destCfg.Namespace = "test-namespace"
+
+	is := is.New(t)
+	dest := newDestination()
+
+	err := dest.Configure(ctx, destCfg.toMap())
+	is.NoErr(err)
+
+	err = dest.Open(ctx)
+	is.NoErr(err)
+	defer teardown(is, ctx, dest)
+
+	is.Equal(dest.writer.index.Namespace, "test-namespace")
 }
 
 func TestDestination_Integration_WriteDelete(t *testing.T) {
@@ -54,33 +73,40 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 	is.NoErr(err)
 
-	assertWrittenRecordIndex(is, ctx, dest.writer.index, id, vecsToBeWritten)
+	assertWrittenRecordIndex(t, is, ctx, dest.writer.index, id, vecsToBeWritten)
 
 	rec = sdk.Util.Source.NewRecordDelete(position, metadata, sdk.RawData(id))
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 
-	assertDeletedRecordIndex(is, ctx, dest.writer.index, id)
+	assertDeletedRecordIndex(t, is, ctx, dest.writer.index, id)
 
 	deleteAllRecords(is, dest.writer.index)
 }
 
-const MAX_RETRIES = 5
+const MAX_RETRIES = 3
 
-func assertWrittenRecordIndex(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string, writtenVecs recordPayload) {
+func waitTime(i int) time.Duration {
+	wait := math.Pow(2, float64(i))
+	return time.Duration(wait) * time.Second
+}
+
+func assertWrittenRecordIndex(t *testing.T, is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string, writtenVecs recordPayload) {
 
 	// Pinecone writes appear to be asynchronous. At the very least, in the current free tier serverless
 	// configuration that I've tested, pinecone writes occurred slightly after the RPC call
 	// returned data. Therefore, the following retry logic is needed to make tests more robust
-	for i := 0; i < MAX_RETRIES; i++ {
+	for i := 1; i <= MAX_RETRIES; i++ {
 		res, err := index.FetchVectors(&ctx, []string{id})
 		is.NoErr(err)
 
 		vec, ok := res.Vectors[id]
 		if !ok {
-			if i == MAX_RETRIES-1 {
+			if i == MAX_RETRIES {
 				is.Fail() // vector was not written
 			} else {
-				time.Sleep(time.Duration(i) * time.Second)
+				wait := waitTime(i)
+				t.Logf("retrying with wait of %v", wait)
+				time.Sleep(wait)
 				continue
 			}
 		}
@@ -90,18 +116,20 @@ func assertWrittenRecordIndex(is *is.I, ctx context.Context, index *pinecone.Ind
 	}
 }
 
-func assertDeletedRecordIndex(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string) {
+func assertDeletedRecordIndex(t *testing.T, is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string) {
 	// same as assertWrittenRecordIndex, we need the retry for robustness
-	for i := 0; i < 3; i++ {
+	for i := 0; i <= MAX_RETRIES; i++ {
 		res, err := index.FetchVectors(&ctx, []string{id})
 		is.NoErr(err)
 
 		_, ok := res.Vectors[id]
 		if ok {
-			if i == MAX_RETRIES-1 {
+			if i == MAX_RETRIES {
 				is.Fail() // vector found, not properly deleted
 			} else {
-				time.Sleep(time.Duration(i) * time.Second)
+				wait := waitTime(i)
+				t.Logf("retrying with wait of %v", wait)
+				time.Sleep(wait)
 				continue
 			}
 		}
