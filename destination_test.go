@@ -64,14 +64,20 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	deleteAllRecords(is, dest.writer.index)
 }
 
+const MAX_RETRIES = 5
+
 func assertWrittenRecordIndex(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string, writtenVecs recordPayload) {
-	for i := 0; i < 3; i++ {
+
+	// Pinecone writes appear to be asynchronous. At the very least, in the current free tier serverless
+	// configuration that I've tested, pinecone writes occurred slightly after the RPC call
+	// returned data. Therefore, the following retry logic is needed to make tests more robust
+	for i := 0; i < MAX_RETRIES; i++ {
 		res, err := index.FetchVectors(&ctx, []string{id})
 		is.NoErr(err)
 
 		vec, ok := res.Vectors[id]
 		if !ok {
-			if i == 2 {
+			if i == MAX_RETRIES-1 {
 				is.Fail() // vector was not written
 			} else {
 				time.Sleep(time.Duration(i) * time.Second)
@@ -85,13 +91,14 @@ func assertWrittenRecordIndex(is *is.I, ctx context.Context, index *pinecone.Ind
 }
 
 func assertDeletedRecordIndex(is *is.I, ctx context.Context, index *pinecone.IndexConnection, id string) {
+	// same as assertWrittenRecordIndex, we need the retry for robustness
 	for i := 0; i < 3; i++ {
 		res, err := index.FetchVectors(&ctx, []string{id})
 		is.NoErr(err)
 
 		_, ok := res.Vectors[id]
 		if ok {
-			if i == 2 {
+			if i == MAX_RETRIES-1 {
 				is.Fail() // vector found, not properly deleted
 			} else {
 				time.Sleep(time.Duration(i) * time.Second)
