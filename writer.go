@@ -77,10 +77,10 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 
 	vec := &pinecone.Vector{
 		//revive:disable-next-line
-		Id:     id,
-		Values: payload.Values,
+		Id:           id,
+		Values:       payload.Values,
 		SparseValues: payload.PineconeSparseValues(),
-		Metadata: metadata,
+		Metadata:     metadata,
 	}
 
 	_, err = w.index.UpsertVectors(&ctx, []*pinecone.Vector{vec})
