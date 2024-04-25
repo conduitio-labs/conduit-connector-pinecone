@@ -12,7 +12,6 @@ type Destination struct {
 	sdk.UnimplementedDestination
 
 	config DestinationConfig
-	client *pineconeClient
 	writer *Writer
 }
 
@@ -35,6 +34,10 @@ func NewDestination() sdk.Destination {
 	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
 }
 
+func newDestination() *Destination {
+	return &Destination{}
+}
+
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
 	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
@@ -50,8 +53,6 @@ func (d *Destination) Open(ctx context.Context) error {
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
 	d.writer = newWriter
-
-	d.client = newPineconeClient(d.config)
 
 	sdk.Logger(ctx).Info().Msg("created pinecone destination")
 
@@ -69,7 +70,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 		if err != nil {
 			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
 		}
-		sdk.Logger(ctx).Trace().Msg("wrote record")
+		sdk.Logger(ctx).Trace().Msgf("wrote record op %s", record.Operation.String())
 	}
 
 	return len(records), nil
