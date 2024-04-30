@@ -101,7 +101,6 @@ type recordPayload struct {
 	ID           string       `json:"id"`
 	Values       []float32    `json:"values"`
 	SparseValues sparseValues `json:"sparse_values,omitempty"`
-	Namespace    string       `json:"namespace"`
 }
 
 func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
