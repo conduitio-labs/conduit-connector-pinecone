@@ -62,46 +62,20 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	return &w, nil
 }
 
-func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
-	id := recordID(record.Key)
-
-	payload, err := parseRecordPayload(record.Payload)
-	if err != nil {
-		return fmt.Errorf("error getting payload: %w", err)
-	}
-
-	metadata, err := recordMetadata(record.Metadata)
-	if err != nil {
-		return fmt.Errorf("error getting metadata: %w", err)
-	}
-
-	vec := &pinecone.Vector{
-		//revive:disable-next-line
-		Id:           id,
-		Values:       payload.Values,
-		SparseValues: payload.PineconeSparseValues(),
-		Metadata:     metadata,
-	}
-
-	_, err = w.index.UpsertVectors(&ctx, []*pinecone.Vector{vec})
+func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) (error) {
+	_, err := w.index.UpsertVectors(&ctx, vectors)
 	if err != nil {
 		return fmt.Errorf("error upserting record: %w", err)
 	}
-	sdk.Logger(ctx).Trace().Msgf("upserted record id %s", id)
 
 	return nil
 }
 
-// Delete deletes records by a key.
-func (w *Writer) Delete(ctx context.Context, record sdk.Record) error {
-	id := recordID(record.Key)
-	ids := []string{id}
-
-	err := w.index.DeleteVectorsById(&ctx, ids)
+func (w *Writer) DeleteRecords(ctx context.Context, vectorIds []string) error {
+	err := w.index.DeleteVectorsById(&ctx, vectorIds)
 	if err != nil {
 		return fmt.Errorf("error deleting record: %w", err)
 	}
-	sdk.Logger(ctx).Trace().Msgf("deleted record %v", id)
 
 	return nil
 }
