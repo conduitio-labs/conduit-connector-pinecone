@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
 type Destination struct {
@@ -80,58 +79,22 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	var deleteIds []string
-	var upsertVecs []*pinecone.Vector
-
-	addVec := func(record sdk.Record) error {
-		id := recordID(record.Key)
-
-		payload, err := parseRecordPayload(record.Payload)
-		if err != nil {
-			return fmt.Errorf("error getting payload: %w", err)
-		}
-
-		metadata, err := recordMetadata(record.Metadata)
-		if err != nil {
-			return fmt.Errorf("error getting metadata: %w", err)
-		}
-
-		vec := &pinecone.Vector{
-			//revive:disable-next-line
-			Id:           id,
-			Values:       payload.Values,
-			SparseValues: payload.PineconeSparseValues(),
-			Metadata:     metadata,
-		}
-
-		upsertVecs = append(upsertVecs, vec)
-		return nil
-	}
-
-	for i, record := range records {
-		var err error
-		switch record.Operation {
-		case sdk.OperationCreate:
-			err = addVec(record)
-		case sdk.OperationUpdate:
-			err = addVec(record)
-		case sdk.OperationDelete:
-			id := string(record.Key.Bytes())
-			deleteIds = append(deleteIds, id)
-		case sdk.OperationSnapshot:
-			err = addVec(record)
-		}
-		if err != nil {
-			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
-		}
-		sdk.Logger(ctx).Trace().Msgf("wrote record op %s", record.Operation.String())
+	upsertVecs, deleteIds, written, err := parseRecords(ctx, records)
+	if err != nil {
+		return written, fmt.Errorf("error while parsing records: %w", err)
 	}
 
 	if len(upsertVecs) != 0 {
-		d.writer.UpsertVectors(ctx, upsertVecs)
+		err := d.writer.UpsertVectors(ctx, upsertVecs)
+		if err != nil {
+			return written, fmt.Errorf("error while upserting records: %w", err)
+		}
 	}
 	if len(deleteIds) != 0 {
-		d.writer.DeleteRecords(ctx, deleteIds)
+		err := d.writer.DeleteRecords(ctx, deleteIds)
+		if err != nil {
+			return written, fmt.Errorf("error while deleting records: %w", err)
+		}
 	}
 
 	return len(records), nil

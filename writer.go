@@ -62,7 +62,7 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	return &w, nil
 }
 
-func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) (error) {
+func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) error {
 	_, err := w.index.UpsertVectors(&ctx, vectors)
 	if err != nil {
 		return fmt.Errorf("error upserting record: %w", err)
@@ -155,4 +155,52 @@ func trimPineconeKey(key string) (trimmed string, hasPrefix bool) {
 	}
 
 	return key, false
+}
+
+func parseRecords(ctx context.Context, records []sdk.Record) (upsertVecs []*pinecone.Vector, deleteIds []string, written int, err error) {
+	addVec := func(record sdk.Record) error {
+		id := recordID(record.Key)
+
+		payload, err := parseRecordPayload(record.Payload)
+		if err != nil {
+			return fmt.Errorf("error getting payload: %w", err)
+		}
+
+		metadata, err := recordMetadata(record.Metadata)
+		if err != nil {
+			return fmt.Errorf("error getting metadata: %w", err)
+		}
+
+		vec := &pinecone.Vector{
+			//revive:disable-next-line
+			Id:           id,
+			Values:       payload.Values,
+			SparseValues: payload.PineconeSparseValues(),
+			Metadata:     metadata,
+		}
+
+		upsertVecs = append(upsertVecs, vec)
+		return nil
+	}
+
+	for i, record := range records {
+		var err error
+		switch record.Operation {
+		case sdk.OperationCreate:
+			err = addVec(record)
+		case sdk.OperationUpdate:
+			err = addVec(record)
+		case sdk.OperationDelete:
+			id := string(record.Key.Bytes())
+			deleteIds = append(deleteIds, id)
+		case sdk.OperationSnapshot:
+			err = addVec(record)
+		}
+		if err != nil {
+			return upsertVecs, nil, i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
+		}
+		sdk.Logger(ctx).Trace().Msgf("wrote record op %s", record.Operation.String())
+	}
+
+	return upsertVecs, deleteIds, written, nil
 }
