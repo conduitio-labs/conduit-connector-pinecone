@@ -15,7 +15,6 @@
 package pinecone
 
 import (
-	"fmt"
 	"testing"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -33,8 +32,6 @@ func TestRecordMetadata(t *testing.T) {
 	}
 	recMetadata, err := parseRecordMetadata(rec)
 	is.NoErr(err)
-
-	fmt.Println()
 
 	is.Equal(recMetadata.Fields["prop1"].AsInterface().(string), "a1")
 	is.Equal(recMetadata.Fields["prop2"].AsInterface().(string), "a2")
