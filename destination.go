@@ -79,25 +79,21 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	upsertVecs, deleteIds, written, err := parseRecords(ctx, records)
+	batches, err := parseRecords(d.writer, records)
 	if err != nil {
-		return written, fmt.Errorf("error while parsing records: %w", err)
+		return 0, err
 	}
 
-	if len(upsertVecs) != 0 {
-		err := d.writer.UpsertVectors(ctx, upsertVecs)
+	var written int
+	for _, batch := range batches {
+		batchWrittenRecs, err := batch.writeBatch(ctx)
+		written += batchWrittenRecs
 		if err != nil {
-			return written, fmt.Errorf("error while upserting records: %w", err)
-		}
-	}
-	if len(deleteIds) != 0 {
-		err := d.writer.DeleteRecords(ctx, deleteIds)
-		if err != nil {
-			return written, fmt.Errorf("error while deleting records: %w", err)
+			return written, err
 		}
 	}
 
-	return len(records), nil
+	return written, nil
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {

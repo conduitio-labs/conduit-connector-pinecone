@@ -62,16 +62,16 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	return &w, nil
 }
 
-func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) error {
-	_, err := w.index.UpsertVectors(&ctx, vectors)
+func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) (int, error) {
+	upserted, err := w.index.UpsertVectors(&ctx, vectors)
 	if err != nil {
-		return fmt.Errorf("error upserting record: %w", err)
+		return int(upserted), fmt.Errorf("error upserting record: %w", err)
 	}
 
-	return nil
+	return int(upserted), nil
 }
 
-func (w *Writer) DeleteRecords(ctx context.Context, vectorIds []string) error {
+func (w *Writer) DeleteVectorsById(ctx context.Context, vectorIds []string) error {
 	err := w.index.DeleteVectorsById(&ctx, vectorIds)
 	if err != nil {
 		return fmt.Errorf("error deleting record: %w", err)
@@ -117,8 +117,32 @@ func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
 	return v
 }
 
-func parseRecordPayload(payload sdk.Change) (parsed recordPayload, err error) {
-	data := payload.After
+func parseVector(rec sdk.Record) (*pinecone.Vector, error) {
+	id := recordID(rec.Key)
+
+	payload, err := parseRecordPayload(rec)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata, err := parseRecordMetadata(rec)
+	if err != nil {
+		return nil, err
+	}
+
+	vec := &pinecone.Vector{
+		//revive:disable-next-line
+		Id:           id,
+		Values:       payload.Values,
+		SparseValues: payload.PineconeSparseValues(),
+		Metadata:     metadata,
+	}
+
+	return vec, nil
+}
+
+func parseRecordPayload(rec sdk.Record) (parsed recordPayload, err error) {
+	data := rec.Payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
 		return parsed, errors.New("empty payload")
@@ -132,9 +156,9 @@ func parseRecordPayload(payload sdk.Change) (parsed recordPayload, err error) {
 	return parsed, nil
 }
 
-func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
+func parseRecordMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 	convertedMap := make(map[string]any)
-	for key, value := range data {
+	for key, value := range rec.Metadata {
 		if trimmed, hasPrefix := trimPineconeKey(key); hasPrefix {
 			convertedMap[trimmed] = value
 		}
@@ -157,50 +181,71 @@ func trimPineconeKey(key string) (trimmed string, hasPrefix bool) {
 	return key, false
 }
 
-func parseRecords(ctx context.Context, records []sdk.Record) (upsertVecs []*pinecone.Vector, deleteIds []string, written int, err error) {
-	addVec := func(record sdk.Record) error {
-		id := recordID(record.Key)
+type recordBatch interface {
+	writeBatch(context.Context) (int, error)
+}
 
-		payload, err := parseRecordPayload(record.Payload)
-		if err != nil {
-			return fmt.Errorf("error getting payload: %w", err)
-		}
+type upsertBatch struct {
+	writer  *Writer
+	vectors []*pinecone.Vector
+}
 
-		metadata, err := recordMetadata(record.Metadata)
-		if err != nil {
-			return fmt.Errorf("error getting metadata: %w", err)
-		}
+func (b upsertBatch) writeBatch(ctx context.Context) (int, error) {
+	return b.writer.UpsertVectors(ctx, b.vectors)
+}
 
-		vec := &pinecone.Vector{
-			//revive:disable-next-line
-			Id:           id,
-			Values:       payload.Values,
-			SparseValues: payload.PineconeSparseValues(),
-			Metadata:     metadata,
-		}
+type deleteBatch struct {
+	writer *Writer
+	ids    []string
+}
 
-		upsertVecs = append(upsertVecs, vec)
-		return nil
+func (b deleteBatch) writeBatch(ctx context.Context) (int, error) {
+	err := b.writer.DeleteVectorsById(ctx, b.ids)
+	if err != nil {
+		return 0, err
 	}
 
-	for i, record := range records {
-		var err error
-		switch record.Operation {
-		case sdk.OperationCreate:
-			err = addVec(record)
-		case sdk.OperationUpdate:
-			err = addVec(record)
+	return len(b.ids), nil
+}
+
+func parseRecords(writer *Writer, records []sdk.Record) ([]recordBatch, error) {
+	var batches []recordBatch
+	currUpsertBatch := upsertBatch{writer: writer}
+	currDeleteBatch := deleteBatch{writer: writer}
+
+	for i, rec := range records {
+		isLast := i == len(records)-1
+		switch rec.Operation {
+		case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
+			vec, err := parseVector(rec)
+			if err != nil {
+				return nil, err
+			}
+
+			currUpsertBatch.vectors = append(currUpsertBatch.vectors, vec)
+
+			if isLast {
+				batches = append(batches, currUpsertBatch)
+			}
+
+			if len(currDeleteBatch.ids) != 0 {
+				batches = append(batches, currDeleteBatch)
+				currDeleteBatch = deleteBatch{writer: writer}
+			}
+
 		case sdk.OperationDelete:
-			id := string(record.Key.Bytes())
-			deleteIds = append(deleteIds, id)
-		case sdk.OperationSnapshot:
-			err = addVec(record)
+			id := recordID(rec.Key)
+			currDeleteBatch.ids = append(currDeleteBatch.ids, id)
+
+			if isLast {
+				batches = append(batches, currDeleteBatch)
+			}
+			if len(currUpsertBatch.vectors) != 0 {
+				batches = append(batches, currUpsertBatch)
+				currUpsertBatch = upsertBatch{writer: writer}
+			}
 		}
-		if err != nil {
-			return upsertVecs, nil, i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
-		}
-		sdk.Logger(ctx).Trace().Msgf("wrote record op %s", record.Operation.String())
 	}
 
-	return upsertVecs, deleteIds, written, nil
+	return batches, nil
 }
