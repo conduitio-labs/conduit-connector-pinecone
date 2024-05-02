@@ -29,22 +29,21 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 		return nil, fmt.Errorf("failed to create pinecone pineconeClient: %v", err)
 	}
 
-	writer := &Writer{
+	return &Writer{
 		client: pineconeClient,
 		index:  indexConnection,
-	}
-	return writer, nil
+	}, nil
 }
 
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	ID := recordID(record.Key)
 
-	payload, err := recordPayload(record.Payload)
+	payload, err := parseVectorValues(record.Payload)
 	if err != nil {
 		return fmt.Errorf("error getting payload: %v", err)
 	}
 
-	metadata, err := recordMetadata(record.Metadata)
+	metadata, err := parseVectorMetadata(record.Metadata)
 	if err != nil {
 		return fmt.Errorf("error getting metadata: %v", err)
 	}
@@ -52,8 +51,8 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	sdk.Logger(ctx).Error().Msgf("metadata: %v", metadata)
 
 	vector := []*pinecone.Vector{{
-		Id:     ID,
-		Values: payload,
+		Id:           ID,
+		Values:       payload,
 		SparseValues: nil,
 		Metadata:     metadata,
 	}}
@@ -114,7 +113,7 @@ func recordID(Key sdk.Data) string {
 	return string(key)
 }
 
-func recordPayload(payload sdk.Change) ([]float32, error) {
+func parseVectorValues(payload sdk.Change) ([]float32, error) {
 	data := payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
@@ -131,7 +130,7 @@ func recordPayload(payload sdk.Change) ([]float32, error) {
 	return parsedPayload, nil
 }
 
-func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
+func parseVectorMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
 	convertedMap := make(map[string]interface{})
 	for key, value := range data {
 		convertedMap[key] = value

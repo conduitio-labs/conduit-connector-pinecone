@@ -97,11 +97,7 @@ func TestMain(t *testing.M) {
 	t.Run()
 }
 
-type connectorResource interface {
-	Teardown(ctx context.Context) error
-}
-
-func teardown(is *is.I, ctx context.Context, resource connectorResource) {
-	err := resource.Teardown(ctx)
+func teardown(is *is.I, ctx context.Context, destination sdk.Destination) {
+	err := destination.Teardown(ctx)
 	is.NoErr(err)
 }
