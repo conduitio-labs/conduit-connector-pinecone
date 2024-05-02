@@ -15,13 +15,6 @@ import (
 	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
-func destConfigFromEnv() DestinationConfig {
-	return DestinationConfig{
-		PineconeAPIKey:  os.Getenv("API_KEY"),
-		PineconeHostURL: os.Getenv("HOST_URL"),
-	}
-}
-
 func TestDestination_Integration_Insert(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
@@ -60,6 +53,13 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	assertWrittenRecord(is, ctx, index, id, rec)
 }
 
+func destConfigFromEnv() DestinationConfig {
+	return DestinationConfig{
+		PineconeAPIKey:  os.Getenv("API_KEY"),
+		PineconeHostURL: os.Getenv("HOST_URL"),
+	}
+}
+
 func createIndex(is *is.I) *pinecone.IndexConnection {
 	destCfg := destConfigFromEnv()
 
@@ -83,7 +83,7 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 		is.Fail() // vector not found
 	}
 
-	recVecValues, err := recordPayload(rec.Payload)
+	recVecValues, err := parseVectorValues(rec.Payload)
 	is.NoErr(err)
 
 	is.Equal(vec.Values, recVecValues)
