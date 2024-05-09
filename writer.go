@@ -182,25 +182,23 @@ func trimPineconeKey(key string) (trimmed string, hasPrefix bool) {
 }
 
 type recordBatch interface {
-	writeBatch(context.Context) (int, error)
+	writeBatch(context.Context, *Writer) (int, error)
 }
 
 type upsertBatch struct {
-	writer  *Writer
 	vectors []*pinecone.Vector
 }
 
-func (b upsertBatch) writeBatch(ctx context.Context) (int, error) {
-	return b.writer.UpsertVectors(ctx, b.vectors)
+func (b upsertBatch) writeBatch(ctx context.Context, writer *Writer) (int, error) {
+	return writer.UpsertVectors(ctx, b.vectors)
 }
 
 type deleteBatch struct {
-	writer *Writer
-	ids    []string
+	ids []string
 }
 
-func (b deleteBatch) writeBatch(ctx context.Context) (int, error) {
-	err := b.writer.DeleteVectorsById(ctx, b.ids)
+func (b deleteBatch) writeBatch(ctx context.Context, writer *Writer) (int, error) {
+	err := writer.DeleteVectorsById(ctx, b.ids)
 	if err != nil {
 		return 0, err
 	}
@@ -208,10 +206,10 @@ func (b deleteBatch) writeBatch(ctx context.Context) (int, error) {
 	return len(b.ids), nil
 }
 
-func parseRecords(writer *Writer, records []sdk.Record) ([]recordBatch, error) {
+func parseRecords(records []sdk.Record) ([]recordBatch, error) {
 	var batches []recordBatch
-	currUpsertBatch := upsertBatch{writer: writer}
-	currDeleteBatch := deleteBatch{writer: writer}
+	var currUpsertBatch upsertBatch
+	var currDeleteBatch deleteBatch
 
 	for i, rec := range records {
 		isLast := i == len(records)-1
@@ -230,7 +228,7 @@ func parseRecords(writer *Writer, records []sdk.Record) ([]recordBatch, error) {
 
 			if len(currDeleteBatch.ids) != 0 {
 				batches = append(batches, currDeleteBatch)
-				currDeleteBatch = deleteBatch{writer: writer}
+				currDeleteBatch = deleteBatch{}
 			}
 
 		case sdk.OperationDelete:
@@ -242,7 +240,7 @@ func parseRecords(writer *Writer, records []sdk.Record) ([]recordBatch, error) {
 			}
 			if len(currUpsertBatch.vectors) != 0 {
 				batches = append(batches, currUpsertBatch)
-				currUpsertBatch = upsertBatch{writer: writer}
+				currUpsertBatch = upsertBatch{}
 			}
 		}
 	}

@@ -82,7 +82,7 @@ func TestParseRecords(t *testing.T) {
 		testRecord(sdk.OperationSnapshot), testRecord(sdk.OperationSnapshot),
 	}
 
-	batches, err := parseRecords(nil, records)
+	batches, err := parseRecords(records)
 	is.NoErr(err)
 
 	is.Equal(len(batches), 5)
