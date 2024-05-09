@@ -64,7 +64,7 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	vec := &pinecone.Vector{
 		Id:     id,
 		Values: payload.Values,
-		// SparseValues: payload.PineconeSparseValues(),
+		SparseValues: payload.PineconeSparseValues(),
 		Metadata: metadata,
 	}
 
