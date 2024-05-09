@@ -38,7 +38,7 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	defer teardown(is, ctx, dest)
 
 	id := uuid.NewString()
-	payload, err := json.Marshal(recordPayload{
+	payload, err := json.Marshal(pineconePayload{
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{1, 2},

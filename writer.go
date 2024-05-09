@@ -52,10 +52,13 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	sdk.Logger(ctx).Error().Msgf("metadata: %v", metadata)
 
 	vector := []*pinecone.Vector{{
-		Id:           ID,
-		Values:       payload.Values,
-		SparseValues: payload.PineconeSparseValues(),
-		Metadata:     metadata,
+		Id:     ID,
+		Values: payload.Values,
+		SparseValues: &pinecone.SparseValues{
+			Indices: payload.SparseValues.Indices,
+			Values:  payload.SparseValues.Values,
+		},
+		Metadata: metadata,
 	}}
 
 	_, err = w.index.UpsertVectors(&ctx, vector)
@@ -114,14 +117,9 @@ func recordID(Key sdk.Data) string {
 	return string(key)
 }
 
-type recordPayload struct {
+type pineconePayload struct {
 	Values       []float32    `json:"values"`
 	SparseValues sparseValues `json:"sparse_values"`
-}
-
-func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
-	v := &pinecone.SparseValues{r.SparseValues.Indices, r.SparseValues.Values}
-	return v
 }
 
 type sparseValues struct {
@@ -129,7 +127,7 @@ type sparseValues struct {
 	Values  []float32 `json:"values"`
 }
 
-func parseRecordPayload(payload sdk.Change) (parsed recordPayload, err error) {
+func parseRecordPayload(payload sdk.Change) (parsed pineconePayload, err error) {
 	data := payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
