@@ -35,7 +35,9 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	if config.Namespace != "" {
 		w.index, err = w.client.IndexWithNamespace(host, config.Namespace)
 		if err != nil {
-			return nil, fmt.Errorf("error establishing index connection: %v", err)
+			return nil, fmt.Errorf(
+				"error establishing index connection to namespace %v: %w",
+				config.Namespace, err)
 		}
 	} else {
 		w.index, err = w.client.Index(host)
@@ -62,10 +64,10 @@ func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	}
 
 	vec := &pinecone.Vector{
-		Id:     id,
-		Values: payload.Values,
+		Id:           id,
+		Values:       payload.Values,
 		SparseValues: payload.PineconeSparseValues(),
-		Metadata: metadata,
+		Metadata:     metadata,
 	}
 
 	_, err = w.index.UpsertVectors(&ctx, []*pinecone.Vector{vec})
