@@ -206,6 +206,11 @@ func (b deleteBatch) writeBatch(ctx context.Context, writer *Writer) (int, error
 	return len(b.ids), nil
 }
 
+// parseRecords processes a slice of records and groups them into batches based
+// on their operation type. New batches are started whenever the operation type
+// switches from upsert to delete or vice versa.
+// Records are batched this way so that we preserve conduit's requirement of writing
+// records sequentially.
 func parseRecords(records []sdk.Record) ([]recordBatch, error) {
 	var batches []recordBatch
 	var currUpsertBatch upsertBatch
@@ -225,12 +230,10 @@ func parseRecords(records []sdk.Record) ([]recordBatch, error) {
 			if isLast {
 				batches = append(batches, currUpsertBatch)
 			}
-
 			if len(currDeleteBatch.ids) != 0 {
 				batches = append(batches, currDeleteBatch)
 				currDeleteBatch = deleteBatch{}
 			}
-
 		case sdk.OperationDelete:
 			id := recordID(rec.Key)
 			currDeleteBatch.ids = append(currDeleteBatch.ids, id)
