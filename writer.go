@@ -71,8 +71,8 @@ func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) 
 	return int(upserted), nil
 }
 
-func (w *Writer) DeleteVectorsById(ctx context.Context, vectorIds []string) error {
-	err := w.index.DeleteVectorsById(&ctx, vectorIds)
+func (w *Writer) DeleteVectorsByID(ctx context.Context, vectorIDs []string) error {
+	err := w.index.DeleteVectorsById(&ctx, vectorIDs)
 	if err != nil {
 		return fmt.Errorf("error deleting record: %w", err)
 	}
@@ -198,7 +198,7 @@ type deleteBatch struct {
 }
 
 func (b deleteBatch) writeBatch(ctx context.Context, writer *Writer) (int, error) {
-	err := writer.DeleteVectorsById(ctx, b.ids)
+	err := writer.DeleteVectorsByID(ctx, b.ids)
 	if err != nil {
 		return 0, err
 	}

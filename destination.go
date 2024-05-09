@@ -89,7 +89,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 		batchWrittenRecs, err := batch.writeBatch(ctx, d.writer)
 		written += batchWrittenRecs
 		if err != nil {
-			return written, err
+			return written, fmt.Errorf("failed to write record batch: %w", err)
 		}
 	}
 
