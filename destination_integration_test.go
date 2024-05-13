@@ -89,7 +89,7 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 }
 
 func TestMain(t *testing.M) {
-	godotenv.Load()
+	_ = godotenv.Load()
 	t.Run()
 }
 

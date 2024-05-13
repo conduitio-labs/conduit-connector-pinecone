@@ -108,9 +108,8 @@ func NewPineconeClient(ctx context.Context, config DestinationConfig) (*pinecone
 	return client, index, nil
 }
 
-func recordID(Key sdk.Data) string {
-	key := Key.Bytes()
-	return string(key)
+func recordID(key sdk.Data) string {
+	return string(key.Bytes())
 }
 
 func parseVectorValues(payload sdk.Change) ([]float32, error) {
