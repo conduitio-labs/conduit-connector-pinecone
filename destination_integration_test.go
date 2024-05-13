@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"testing"
 
@@ -90,10 +89,7 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 }
 
 func TestMain(t *testing.M) {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("error loading environment variables")
-	}
-
+	godotenv.Load()
 	t.Run()
 }
 
