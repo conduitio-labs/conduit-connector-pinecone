@@ -30,7 +30,7 @@ func TestRecordMetadata(t *testing.T) {
 		"pinecone.prop1": "a1",
 		"pinecone.prop2": "a2",
 	}
-	recMetadata, err := parseRecordMetadata(rec)
+	recMetadata, err := parsePineconeMetadata(rec)
 	is.NoErr(err)
 
 	is.Equal(recMetadata.Fields["prop1"].AsInterface().(string), "a1")
@@ -82,7 +82,7 @@ func TestParseRecords(t *testing.T) {
 		testRecord(sdk.OperationSnapshot), testRecord(sdk.OperationSnapshot),
 	}
 
-	batches, err := parseRecords(records)
+	batches, err := buildBatches(records)
 	is.NoErr(err)
 
 	is.Equal(len(batches), 5)

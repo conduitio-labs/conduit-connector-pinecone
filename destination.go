@@ -79,7 +79,7 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := parseRecords(records)
+	batches, err := buildBatches(records)
 	if err != nil {
 		return 0, err
 	}

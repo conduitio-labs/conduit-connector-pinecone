@@ -125,7 +125,7 @@ func parseVector(rec sdk.Record) (*pinecone.Vector, error) {
 		return nil, err
 	}
 
-	metadata, err := parseRecordMetadata(rec)
+	metadata, err := parsePineconeMetadata(rec)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func parseRecordPayload(rec sdk.Record) (parsed recordPayload, err error) {
 	return parsed, nil
 }
 
-func parseRecordMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
+func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 	convertedMap := make(map[string]any)
 	for key, value := range rec.Metadata {
 		if trimmed, hasPrefix := trimPineconeKey(key); hasPrefix {
@@ -206,12 +206,12 @@ func (b deleteBatch) writeBatch(ctx context.Context, writer *Writer) (int, error
 	return len(b.ids), nil
 }
 
-// parseRecords processes a slice of records and groups them into batches based
+// buildBatches processes a slice of records and groups them into batches based
 // on their operation type. New batches are started whenever the operation type
 // switches from upsert to delete or vice versa.
 // Records are batched this way so that we preserve conduit's requirement of writing
 // records sequentially.
-func parseRecords(records []sdk.Record) ([]recordBatch, error) {
+func buildBatches(records []sdk.Record) ([]recordBatch, error) {
 	var batches []recordBatch
 	var currUpsertBatch upsertBatch
 	var currDeleteBatch deleteBatch
