@@ -49,7 +49,9 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	if config.Namespace != "" {
 		w.index, err = w.client.IndexWithNamespace(host, config.Namespace)
 		if err != nil {
-			return nil, fmt.Errorf("error establishing index connection: %w", err)
+			return nil, fmt.Errorf(
+				"error establishing index connection to namespace %v: %w",
+				config.Namespace, err)
 		}
 	} else {
 		w.index, err = w.client.Index(host)

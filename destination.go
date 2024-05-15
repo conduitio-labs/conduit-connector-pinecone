@@ -32,14 +32,14 @@ type Destination struct {
 
 type DestinationConfig struct {
 	// APIKey is the API Key for authenticating with Pinecone.
-	APIKey string `json:"pinecone.apiKey" validate:"required"`
+	APIKey string `json:"apiKey" validate:"required"`
 
 	// Host is the Pinecone index host URL
-	Host string `json:"pinecone.host" validate:"required"`
+	Host string `json:"host" validate:"required"`
 
 	// Namespace is the Pinecone's index namespace. Defaults to the empty
 	// namespace.
-	Namespace string `json:"pinecone.namespace"`
+	Namespace string `json:"namespace"`
 }
 
 func (d DestinationConfig) toMap() map[string]string {
