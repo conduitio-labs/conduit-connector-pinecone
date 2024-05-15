@@ -9,21 +9,27 @@ import (
 
 func (DestinationConfig) Parameters() map[string]sdk.Parameter {
 	return map[string]sdk.Parameter{
-		"pinecone.apiKey": {
+		"apiKey": {
 			Default:     "",
-			Description: "pinecone.apiKey is the API Key for authenticating with Pinecone.",
+			Description: "apiKey is the API Key for authenticating with Pinecone.",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
 			},
 		},
-		"pinecone.host": {
+		"host": {
 			Default:     "",
-			Description: "pinecone.host is the Pinecone index host URL",
+			Description: "host is the Pinecone index host URL",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
 			},
+		},
+		"namespace": {
+			Default:     "",
+			Description: "namespace is the Pinecone's index namespace. Defaults to the empty namespace.",
+			Type:        sdk.ParameterTypeString,
+			Validations: []sdk.Validation{},
 		},
 	}
 }
