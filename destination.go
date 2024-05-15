@@ -79,20 +79,21 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	for i, record := range records {
-		err := sdk.Util.Destination.Route(ctx, record,
-			d.writer.Upsert,
-			d.writer.Upsert,
-			d.writer.Delete,
-			d.writer.Upsert,
-		)
-		if err != nil {
-			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
-		}
-		sdk.Logger(ctx).Trace().Msgf("wrote record op %s", record.Operation.String())
+	batches, err := buildBatches(records)
+	if err != nil {
+		return 0, err
 	}
 
-	return len(records), nil
+	var written int
+	for _, batch := range batches {
+		batchWrittenRecs, err := batch.writeBatch(ctx, d.writer)
+		written += batchWrittenRecs
+		if err != nil {
+			return written, fmt.Errorf("failed to write record batch: %w", err)
+		}
+	}
+
+	return written, nil
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
