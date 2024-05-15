@@ -44,9 +44,9 @@ type DestinationConfig struct {
 
 func (d DestinationConfig) toMap() map[string]string {
 	return map[string]string{
-		"pinecone.apiKey":    d.APIKey,
-		"pinecone.host":      d.Host,
-		"pinecone.namespace": d.Namespace,
+		"apiKey":    d.APIKey,
+		"host":      d.Host,
+		"namespace": d.Namespace,
 	}
 }
 
