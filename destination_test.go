@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -71,7 +72,10 @@ func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection 
 	})
 	is.NoErr(err)
 
-	index, err := client.Index(destCfg.Host)
+	hostURL, err := url.Parse(destCfg.Host)
+	is.NoErr(err)
+
+	index, err := client.Index(hostURL.Hostname())
 	is.NoErr(err)
 
 	return index
