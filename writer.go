@@ -122,7 +122,7 @@ func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
 	return v
 }
 
-func parseVector(rec sdk.Record) (*pinecone.Vector, error) {
+func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
 	id := recordID(rec.Key)
 
 	payload, err := parseRecordPayload(rec)
@@ -225,7 +225,7 @@ func buildBatches(records []sdk.Record) ([]recordBatch, error) {
 		isLast := i == len(records)-1
 		switch rec.Operation {
 		case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
-			vec, err := parseVector(rec)
+			vec, err := parsePineconeVector(rec)
 			if err != nil {
 				return nil, err
 			}
