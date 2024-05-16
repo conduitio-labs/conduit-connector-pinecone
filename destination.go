@@ -54,10 +54,6 @@ func NewDestination() sdk.Destination {
 	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
 }
 
-func newDestination() *Destination {
-	return &Destination{}
-}
-
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
 	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)

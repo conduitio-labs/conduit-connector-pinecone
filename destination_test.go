@@ -54,7 +54,7 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	destCfg.Namespace = "test-namespace"
 
 	is := is.New(t)
-	dest := newDestination()
+	dest := NewDestination()
 
 	err := dest.Configure(ctx, destCfg.toMap())
 	is.NoErr(err)
@@ -63,7 +63,13 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	is.NoErr(err)
 	defer teardown(ctx, is, dest)
 
-	is.Equal(dest.writer.index.Namespace, "test-namespace")
+	index := createIndex(is, destCfg)
+
+	stats, err := index.DescribeIndexStats(&ctx)
+	is.NoErr(err)
+
+	_, namespaceExists := stats.Namespaces[destCfg.Namespace]
+	is.True(namespaceExists) // namespace exists
 }
 
 func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection {
@@ -85,7 +91,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	ctx := context.Background()
 	destCfg := destConfigFromEnv(t)
 	is := is.New(t)
-	dest := newDestination()
+	dest := NewDestination()
 
 	err := dest.Configure(ctx, destCfg.toMap())
 	is.NoErr(err)
@@ -126,7 +132,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 
 	assertDeletedRecordIndex(ctx, t, is, index, id)
 
-	deleteAllRecords(is, dest.writer.index)
+	deleteAllRecords(is, index)
 }
 
 const maxRetries = 4
