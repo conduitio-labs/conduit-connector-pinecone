@@ -37,9 +37,9 @@ func TestRecordMetadata(t *testing.T) {
 	is.Equal(recMetadata.Fields["prop2"].AsInterface().(string), "a2")
 }
 
-func testRecord(op sdk.Operation) sdk.Record {
+func testRecord(op sdk.Operation, keyStr string) sdk.Record {
 	var position sdk.Position
-	var key sdk.Data = sdk.RawData("key")
+	var key sdk.Data = sdk.RawData(keyStr)
 	var metadata sdk.Metadata
 	var payload sdk.Data = sdk.StructuredData{
 		"vector": []float64{1, 2},
@@ -55,31 +55,20 @@ func testRecord(op sdk.Operation) sdk.Record {
 	}
 }
 
-func batchSize(batch recordBatch) int {
-	switch batch := batch.(type) {
-	case upsertBatch:
-		return len(batch.vectors)
-	case deleteBatch:
-		return len(batch.ids)
-	}
-
-	panic("invalid batch")
-}
-
 func TestParseRecords(t *testing.T) {
 	is := is.New(t)
 
 	records := []sdk.Record{
-		testRecord(sdk.OperationUpdate),
+		testRecord(sdk.OperationUpdate, "key1"),
 
-		testRecord(sdk.OperationDelete), testRecord(sdk.OperationDelete),
+		testRecord(sdk.OperationDelete, "key2"), testRecord(sdk.OperationDelete, "key3"),
 
-		testRecord(sdk.OperationCreate), testRecord(sdk.OperationCreate),
-		testRecord(sdk.OperationCreate),
+		testRecord(sdk.OperationCreate, "key4"), testRecord(sdk.OperationCreate, "key5"),
+		testRecord(sdk.OperationCreate, "key6"),
 
-		testRecord(sdk.OperationDelete),
+		testRecord(sdk.OperationDelete, "key7"),
 
-		testRecord(sdk.OperationSnapshot), testRecord(sdk.OperationSnapshot),
+		testRecord(sdk.OperationSnapshot, "key8"), testRecord(sdk.OperationSnapshot, "key9"),
 	}
 
 	batches, err := buildBatches(records)
@@ -87,9 +76,31 @@ func TestParseRecords(t *testing.T) {
 
 	is.Equal(len(batches), 5)
 
-	is.Equal(batchSize(batches[0]), 1)
-	is.Equal(batchSize(batches[1]), 2)
-	is.Equal(batchSize(batches[2]), 3)
-	is.Equal(batchSize(batches[3]), 1)
-	is.Equal(batchSize(batches[4]), 2)
+	assertUpsertBatch(is, batches[0], "key1")
+	assertDeleteBatch(is, batches[1], "key2", "key3")
+	assertUpsertBatch(is, batches[2], "key4", "key5", "key6")
+	assertDeleteBatch(is, batches[3], "key7")
+	assertUpsertBatch(is, batches[4], "key8", "key9")
+}
+
+func assertUpsertBatch(is *is.I, batch recordBatch, keys ...string) {
+	upsertBatch, ok := batch.(upsertBatch)
+	is.True(ok) // batch isn't upsertBatch
+
+	is.Equal(len(upsertBatch.vectors), len(keys))
+
+	for i, vec := range upsertBatch.vectors {
+		is.Equal(vec.Id, keys[i])
+	}
+}
+
+func assertDeleteBatch(is *is.I, batch recordBatch, keys ...string) {
+	deleteBatch, ok := batch.(deleteBatch)
+	is.True(ok) // batch isn't upsertBatch
+
+	is.Equal(len(deleteBatch.ids), len(keys))
+
+	for i, id := range deleteBatch.ids {
+		is.Equal(id, keys[i])
+	}
 }
