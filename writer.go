@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -43,18 +44,20 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	}
 	sdk.Logger(ctx).Info().Msg("created pinecone client")
 
-	// index urls should have their protocol trimmed
-	host := strings.TrimPrefix(config.Host, "https://")
+	hostURL, err := url.Parse(config.Host)
+	if err != nil {
+		return nil, fmt.Errorf("invalid host url: %w", err)
+	}
 
 	if config.Namespace != "" {
-		w.index, err = w.client.IndexWithNamespace(host, config.Namespace)
+		w.index, err = w.client.IndexWithNamespace(hostURL.Host, config.Namespace)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"error establishing index connection to namespace %v: %w",
 				config.Namespace, err)
 		}
 	} else {
-		w.index, err = w.client.Index(host)
+		w.index, err = w.client.Index(hostURL.Host)
 		if err != nil {
 			return nil, fmt.Errorf("error establishing index connection: %w", err)
 		}

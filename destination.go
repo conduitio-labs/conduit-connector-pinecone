@@ -34,7 +34,7 @@ type DestinationConfig struct {
 	// APIKey is the API Key for authenticating with Pinecone.
 	APIKey string `json:"apiKey" validate:"required"`
 
-	// Host is the Pinecone index host URL
+	// Host is the whole Pinecone index host URL.
 	Host string `json:"host" validate:"required"`
 
 	// Namespace is the Pinecone's index namespace. Defaults to the empty
