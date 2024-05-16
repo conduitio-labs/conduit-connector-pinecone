@@ -65,6 +65,18 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	is.Equal(dest.writer.index.Namespace, "test-namespace")
 }
 
+func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection {
+	client, err := pinecone.NewClient(pinecone.NewClientParams{
+		ApiKey: destCfg.APIKey,
+	})
+	is.NoErr(err)
+
+	index, err := client.Index(destCfg.Host)
+	is.NoErr(err)
+
+	return index
+}
+
 func TestDestination_Integration_WriteDelete(t *testing.T) {
 	ctx := context.Background()
 	destCfg := destConfigFromEnv(t)
@@ -101,13 +113,15 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 	is.NoErr(err)
 
-	assertWrittenRecordIndex(ctx, t, is, dest.writer.index, id, vecsToBeWritten)
+	index := createIndex(is, destCfg)
+
+	assertWrittenRecordIndex(ctx, t, is, index, id, vecsToBeWritten)
 
 	rec = sdk.Util.Source.NewRecordDelete(position, metadata, sdk.RawData(id))
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 	is.NoErr(err)
 
-	assertDeletedRecordIndex(ctx, t, is, dest.writer.index, id)
+	assertDeletedRecordIndex(ctx, t, is, index, id)
 
 	deleteAllRecords(is, dest.writer.index)
 }
