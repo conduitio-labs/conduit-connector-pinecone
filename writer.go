@@ -103,7 +103,6 @@ type sparseValues struct {
 }
 
 type recordPayload struct {
-	ID           string       `json:"id"`
 	Values       []float32    `json:"values"`
 	SparseValues sparseValues `json:"sparse_values,omitempty"`
 }

@@ -98,7 +98,6 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	}
 
 	vecsToBeWritten := recordPayload{
-		ID:     id,
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{3, 5},
