@@ -89,7 +89,7 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 		is.Fail() // vector not found
 	}
 
-	recVecValues, err := parseRecordPayload(rec.Payload)
+	recVecValues, err := parsePineconePayload(rec.Payload)
 	is.NoErr(err)
 
 	is.Equal(vec.Values, recVecValues.Values)

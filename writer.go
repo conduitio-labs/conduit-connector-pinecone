@@ -39,7 +39,7 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 func (w *Writer) Upsert(ctx context.Context, record sdk.Record) error {
 	ID := recordID(record.Key)
 
-	payload, err := parseRecordPayload(record.Payload)
+	payload, err := parsePineconePayload(record.Payload)
 	if err != nil {
 		return fmt.Errorf("error getting payload: %v", err)
 	}
@@ -127,7 +127,7 @@ type sparseValues struct {
 	Values  []float32 `json:"values"`
 }
 
-func parseRecordPayload(payload sdk.Change) (parsed pineconePayload, err error) {
+func parsePineconePayload(payload sdk.Change) (parsed pineconePayload, err error) {
 	data := payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
