@@ -66,7 +66,6 @@ func assertUpsertBatch(is *is.I, batch recordBatch, keys ...string) {
 	is.True(ok) // batch isn't upsertBatch
 
 	is.Equal(len(upsertBatch.vectors), len(keys))
-
 	for i, vec := range upsertBatch.vectors {
 		is.Equal(vec.Id, keys[i])
 	}
@@ -75,12 +74,7 @@ func assertUpsertBatch(is *is.I, batch recordBatch, keys ...string) {
 func assertDeleteBatch(is *is.I, batch recordBatch, keys ...string) {
 	deleteBatch, ok := batch.(deleteBatch)
 	is.True(ok) // batch isn't deleteBatch
-
-	is.Equal(len(deleteBatch.ids), len(keys))
-
-	for i, id := range deleteBatch.ids {
-		is.Equal(id, keys[i])
-	}
+	is.Equal(deleteBatch.ids, keys)
 }
 
 func TestParseRecords(t *testing.T) {
