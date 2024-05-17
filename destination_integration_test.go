@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
@@ -53,6 +54,8 @@ func TestDestination_Integration_Insert(t *testing.T) {
 
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 	is.NoErr(err)
+
+	time.Sleep(5 * time.Second)
 
 	index := createIndex(is)
 	assertWrittenRecord(is, ctx, index, id, rec)
