@@ -145,24 +145,13 @@ func parseRecordPayload(payload sdk.Change) (parsed pineconePayload, err error) 
 func recordMetadata(data sdk.Metadata) (*pinecone.Metadata, error) {
 	convertedMap := make(map[string]interface{})
 	for key, value := range data {
-		if trimmed, hasPrefix := trimPineconeKey(key); hasPrefix {
-			convertedMap[trimmed] = value
-		}
+		convertedMap[key] = value
 	}
+
 	metadata, err := structpb.NewStruct(convertedMap)
 	if err != nil {
 		return nil, fmt.Errorf("error creating metadata: %v", err)
 	}
 
 	return metadata, nil
-}
-
-var keyPrefix = "pinecone."
-
-func trimPineconeKey(key string) (trimmed string, hasPrefix bool) {
-	if strings.HasPrefix(key, keyPrefix) {
-		return key[len(keyPrefix):], true
-	}
-
-	return key, false
 }
