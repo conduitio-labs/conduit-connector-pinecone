@@ -1,4 +1,4 @@
-.PHONY: build test test-integration generate install-paramgen install-tools golangci-lint-install
+.PHONY: build test generate install-paramgen install-tools golangci-lint-install
 
 VERSION=$(shell git describe --tags --dirty --always)
 
@@ -7,13 +7,6 @@ build:
 
 test:
 	go test $(GOTEST_FLAGS) -race ./...
-
-test-integration:
-	# run required docker containers, execute integration tests, stop containers after tests
-	docker compose -f test/docker-compose.yml up -d
-	go test $(GOTEST_FLAGS) -v -race ./...; ret=$$?; \
-		docker compose -f test/docker-compose.yml down; \
-		exit $$ret
 
 generate:
 	go generate ./...
