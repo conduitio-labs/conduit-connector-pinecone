@@ -22,8 +22,6 @@ type Writer struct {
 func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 	sdk.Logger(ctx).Trace().Msg("Creating new writer.")
 
-	sdk.Logger(ctx).Error().Msgf("API: %v, INDEX:%v", config.PineconeAPIKey, config.PineconeHostURL)
-
 	pineconeClient, indexConnection, err := NewPineconeClient(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pinecone pineconeClient: %v", err)
@@ -90,6 +88,7 @@ func (w *Writer) Close() error {
 // connection
 func NewPineconeClient(ctx context.Context, config DestinationConfig) (*pinecone.Client, *pinecone.IndexConnection, error) {
 	sdk.Logger(ctx).Trace().Msg("Creating a Pinecone Client.")
+	fmt.Println(config.PineconeHostURL[:20])
 
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
 		ApiKey: config.PineconeAPIKey,
