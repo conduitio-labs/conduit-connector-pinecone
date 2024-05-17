@@ -77,6 +77,8 @@ func createIndex(is *is.I) *pinecone.IndexConnection {
 	url, err := url.Parse(destCfg.PineconeHostURL)
 	is.NoErr(err)
 
+	fmt.Println(url.Hostname()[:10])
+
 	index, err := client.Index(url.Hostname())
 	is.NoErr(err)
 
