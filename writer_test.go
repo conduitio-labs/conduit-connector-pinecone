@@ -15,7 +15,7 @@ func TestRecordMetadata(t *testing.T) {
 		"prop1": "a1",
 		"prop2": "a2",
 	}
-	recMetadata, err := recordMetadata(sdkMetadata)
+	recMetadata, err := parseVectorMetadata(sdkMetadata)
 	is.NoErr(err)
 
 	is.Equal(recMetadata.Fields["prop1"].AsInterface().(string), "a1")

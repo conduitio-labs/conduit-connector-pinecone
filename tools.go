@@ -14,7 +14,7 @@
 
 //go:build tools
 
-package pinecone
+package main
 
 import (
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"

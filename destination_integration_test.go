@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"testing"
@@ -15,13 +14,6 @@ import (
 	"github.com/matryer/is"
 	"github.com/pinecone-io/go-pinecone/pinecone"
 )
-
-func destConfigFromEnv() DestinationConfig {
-	return DestinationConfig{
-		PineconeAPIKey:  os.Getenv("API_KEY"),
-		PineconeHostURL: os.Getenv("HOST_URL"),
-	}
-}
 
 func TestDestination_Integration_Insert(t *testing.T) {
 	is := is.New(t)
@@ -67,6 +59,13 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	assertWrittenRecord(is, ctx, index, id, rec)
 }
 
+func destConfigFromEnv() DestinationConfig {
+	return DestinationConfig{
+		PineconeAPIKey:  os.Getenv("API_KEY"),
+		PineconeHostURL: os.Getenv("HOST_URL"),
+	}
+}
+
 func createIndex(is *is.I) *pinecone.IndexConnection {
 	destCfg := destConfigFromEnv()
 
@@ -102,18 +101,11 @@ func assertWrittenRecord(is *is.I, ctx context.Context, index *pinecone.IndexCon
 }
 
 func TestMain(t *testing.M) {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("error loading environment variables")
-	}
-
+	_ = godotenv.Load()
 	t.Run()
 }
 
-type connectorResource interface {
-	Teardown(ctx context.Context) error
-}
-
-func teardown(is *is.I, ctx context.Context, resource connectorResource) {
-	err := resource.Teardown(ctx)
+func teardown(is *is.I, ctx context.Context, destination sdk.Destination) {
+	err := destination.Teardown(ctx)
 	is.NoErr(err)
 }
