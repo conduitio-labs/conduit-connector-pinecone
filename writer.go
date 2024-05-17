@@ -88,7 +88,6 @@ func (w *Writer) Close() error {
 // connection
 func NewPineconeClient(ctx context.Context, config DestinationConfig) (*pinecone.Client, *pinecone.IndexConnection, error) {
 	sdk.Logger(ctx).Trace().Msg("Creating a Pinecone Client.")
-	fmt.Println(config.PineconeHostURL[:20])
 
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
 		ApiKey: config.PineconeAPIKey,
