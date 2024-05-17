@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/pinecone-io/go-pinecone/pinecone"
@@ -163,9 +162,7 @@ func parseRecordPayload(rec sdk.Record) (parsed recordPayload, err error) {
 func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 	convertedMap := make(map[string]any)
 	for key, value := range rec.Metadata {
-		if trimmed, hasPrefix := trimPineconeKey(key); hasPrefix {
-			convertedMap[trimmed] = value
-		}
+		convertedMap[key] = value
 	}
 	metadata, err := structpb.NewStruct(convertedMap)
 	if err != nil {
@@ -173,16 +170,6 @@ func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 	}
 
 	return metadata, nil
-}
-
-var keyPrefix = "pinecone."
-
-func trimPineconeKey(key string) (trimmed string, hasPrefix bool) {
-	if strings.HasPrefix(key, keyPrefix) {
-		return key[len(keyPrefix):], true
-	}
-
-	return key, false
 }
 
 type recordBatch interface {

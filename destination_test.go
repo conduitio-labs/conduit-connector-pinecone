@@ -101,7 +101,7 @@ func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection 
 	hostURL, err := url.Parse(destCfg.Host)
 	is.NoErr(err)
 
-	index, err := client.Index(hostURL.Hostname())
+	index, err := client.IndexWithNamespace(hostURL.Hostname(), destCfg.Namespace)
 	is.NoErr(err)
 
 	return index
@@ -251,4 +251,45 @@ type connectorResource interface {
 func teardown(ctx context.Context, is *is.I, resource connectorResource) {
 	err := resource.Teardown(ctx)
 	is.NoErr(err)
+}
+
+func TestParsePineconeVector(t *testing.T) {
+	is := is.New(t)
+
+	vecToBeWritten := recordPayload{
+		Values: []float32{1, 2},
+		SparseValues: sparseValues{
+			Indices: []uint32{3, 5},
+			Values:  []float32{0.5, 0.3},
+		},
+	}
+
+	payload, err := json.Marshal(vecToBeWritten)
+	is.NoErr(err)
+
+	rec := sdk.Record{
+		Position:  nil,
+		Operation: sdk.OperationCreate,
+		Metadata: map[string]string{
+			"prop1": "val1",
+			"prop2": "val2",
+		},
+		Key: sdk.RawData("key1"),
+		Payload: sdk.Change{
+			Before: nil,
+			After:  sdk.RawData(payload),
+		},
+	}
+
+	vec, err := parsePineconeVector(rec)
+	is.NoErr(err)
+
+	is.Equal(vec.Id, "key1")
+
+	is.Equal(vec.Values, vecToBeWritten.Values)
+	is.Equal(vec.SparseValues, vecToBeWritten.PineconeSparseValues())
+
+	metadata := vec.Metadata.AsMap()
+	is.Equal(metadata["prop1"], "val1")
+	is.Equal(metadata["prop2"], "val2")
 }
