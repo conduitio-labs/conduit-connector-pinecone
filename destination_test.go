@@ -51,7 +51,7 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	ctx := context.Background()
 	destCfg := destConfigFromEnv(t)
 	// we use the default namespace on all other tests, so it's correct to set it here
-	destCfg.Namespace = "test-namespace"
+	destCfg.Namespace = fmt.Sprintf("test-namespace%s", uuid.NewString()[:8])
 
 	is := is.New(t)
 	dest := NewDestination()
@@ -63,13 +63,33 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	is.NoErr(err)
 	defer teardown(ctx, is, dest)
 
-	index := createIndex(is, destCfg)
+	id := uuid.NewString()
+	position := sdk.Position(fmt.Sprintf("pos-%v", id))
+	metadata := map[string]string{
+		"prop1": "val1",
+		"prop2": "val2",
+	}
 
-	stats, err := index.DescribeIndexStats(&ctx)
+	vecsToBeWritten := recordPayload{
+		Values: []float32{1, 2},
+		SparseValues: sparseValues{
+			Indices: []uint32{3, 5},
+			Values:  []float32{0.5, 0.3},
+		},
+	}
+
+	payload, err := json.Marshal(vecsToBeWritten)
 	is.NoErr(err)
 
-	_, namespaceExists := stats.Namespaces[destCfg.Namespace]
-	is.True(namespaceExists) // namespace exists
+	rec := sdk.Util.Source.NewRecordCreate(position, metadata, sdk.RawData(id), sdk.RawData(payload))
+
+	_, err = dest.Write(ctx, []sdk.Record{rec})
+	is.NoErr(err)
+
+	index := createIndex(is, destCfg)
+	defer deleteAllRecords(is, index)
+
+	assertNamespaceExists(ctx, t, is, index, destCfg.Namespace)
 }
 
 func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection {
@@ -103,8 +123,8 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	id := uuid.NewString()
 	position := sdk.Position(fmt.Sprintf("pos-%v", id))
 	metadata := map[string]string{
-		"pinecone.prop1": "val1",
-		"pinecone.prop2": "val2",
+		"prop1": "val1",
+		"prop2": "val2",
 	}
 
 	vecsToBeWritten := recordPayload{
@@ -186,6 +206,29 @@ func assertDeletedRecordIndex(ctx context.Context, t *testing.T, is *is.I, index
 				continue
 			}
 		}
+		break
+	}
+}
+
+func assertNamespaceExists(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, namespace string) {
+	// same as assertWrittenRecordIndex, we need the retry for robustness
+	for i := 0; i <= maxRetries; i++ {
+		stats, err := index.DescribeIndexStats(&ctx)
+		is.NoErr(err)
+
+		_, namespaceExists := stats.Namespaces[namespace]
+		if !namespaceExists {
+			if i == maxRetries {
+				is.Fail() // vector found, not properly deleted
+			} else {
+				wait := waitTime(i)
+				t.Logf("retrying with wait of %v", wait)
+				time.Sleep(wait)
+				continue
+			}
+		}
+
+		break
 	}
 }
 
