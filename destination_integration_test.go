@@ -18,17 +18,21 @@ import (
 func TestDestination_Integration_Insert(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-
 	dest := NewDestination()
+	t.Log("create dest") 
 
 	destCfg := destConfigFromEnv()
 
 	err := dest.Configure(ctx, destCfg.toMap())
 	is.NoErr(err)
 
+	t.Log("configured dest") 
+
 	err = dest.Open(ctx)
 	is.NoErr(err)
 	defer teardown(is, ctx, dest)
+
+	t.Log("opened dest") 
 
 	id := uuid.NewString()
 	payload, err := json.Marshal(pineconePayload{
@@ -55,7 +59,11 @@ func TestDestination_Integration_Insert(t *testing.T) {
 	_, err = dest.Write(ctx, []sdk.Record{rec})
 	is.NoErr(err)
 
+	t.Log("wrote rec") 
+
 	index := createIndex(is)
+	
+	t.Log("created index") 
 	assertWrittenRecord(is, ctx, index, id, rec)
 }
 

@@ -6,7 +6,7 @@ build:
 	go build -ldflags "-X 'github.com/conduitio/conduit-connector-pinecone.version=${VERSION}'" -o conduit-connector-pinecone cmd/connector/main.go
 
 test:
-	go test $(GOTEST_FLAGS) -race .
+	go test $(GOTEST_FLAGS) -race -v .
 
 generate:
 	go generate ./...
