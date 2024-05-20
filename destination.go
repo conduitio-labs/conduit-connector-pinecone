@@ -21,13 +21,15 @@ import (
 	"fmt"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
 type Destination struct {
 	sdk.UnimplementedDestination
 
 	config DestinationConfig
-	writer *Writer
+
+	index *pinecone.IndexConnection
 }
 
 type DestinationConfig struct {
@@ -64,7 +66,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 }
 
 func (d *Destination) Open(ctx context.Context) (err error) {
-	d.writer, err = NewWriter(ctx, d.config)
+	d.index, err = newIndex(ctx, d.config)
 	if err != nil {
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
@@ -82,7 +84,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 
 	var written int
 	for _, batch := range batches {
-		batchWrittenRecs, err := batch.writeBatch(ctx, d.writer)
+		batchWrittenRecs, err := batch.writeBatch(ctx, d.index)
 		written += batchWrittenRecs
 		if err != nil {
 			return written, fmt.Errorf("failed to write record batch: %w", err)
@@ -95,5 +97,5 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 func (d *Destination) Teardown(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
 
-	return d.writer.Close()
+	return d.index.Close()
 }

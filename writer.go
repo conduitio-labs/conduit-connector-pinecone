@@ -26,16 +26,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// Writer implements a writer logic for Sap hana destination.
-type Writer struct {
-	client *pinecone.Client
-	index  *pinecone.IndexConnection
-}
-
-func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
-	var w Writer
-	var err error
-	w.client, err = pinecone.NewClient(pinecone.NewClientParams{
+func newIndex(ctx context.Context, config DestinationConfig) (*pinecone.IndexConnection, error) {
+	client, err := pinecone.NewClient(pinecone.NewClientParams{
 		ApiKey: config.APIKey,
 	})
 	if err != nil {
@@ -48,48 +40,23 @@ func NewWriter(ctx context.Context, config DestinationConfig) (*Writer, error) {
 		return nil, fmt.Errorf("invalid host url: %w", err)
 	}
 
+	var index *pinecone.IndexConnection
 	if config.Namespace != "" {
-		w.index, err = w.client.IndexWithNamespace(hostURL.Host, config.Namespace)
+		index, err = client.IndexWithNamespace(hostURL.Host, config.Namespace)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"error establishing index connection to namespace %v: %w",
 				config.Namespace, err)
 		}
 	} else {
-		w.index, err = w.client.Index(hostURL.Host)
+		index, err = client.Index(hostURL.Host)
 		if err != nil {
 			return nil, fmt.Errorf("error establishing index connection: %w", err)
 		}
 	}
 	sdk.Logger(ctx).Info().Msg("created pinecone index")
 
-	return &w, nil
-}
-
-func (w *Writer) UpsertVectors(ctx context.Context, vectors []*pinecone.Vector) (int, error) {
-	upserted, err := w.index.UpsertVectors(&ctx, vectors)
-	if err != nil {
-		return int(upserted), fmt.Errorf("error upserting record: %w", err)
-	}
-
-	return int(upserted), nil
-}
-
-func (w *Writer) DeleteVectorsByID(ctx context.Context, vectorIDs []string) error {
-	err := w.index.DeleteVectorsById(&ctx, vectorIDs)
-	if err != nil {
-		return fmt.Errorf("error deleting record: %w", err)
-	}
-
-	return nil
-}
-
-func (w *Writer) Close() error {
-	if err := w.index.Close(); err != nil {
-		return fmt.Errorf("error closing writer: %w", err)
-	}
-
-	return nil
+	return index, nil
 }
 
 func recordID(key sdk.Data) string {
@@ -174,23 +141,24 @@ func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 }
 
 type recordBatch interface {
-	writeBatch(context.Context, *Writer) (int, error)
+	writeBatch(context.Context, *pinecone.IndexConnection) (int, error)
 }
 
 type upsertBatch struct {
 	vectors []*pinecone.Vector
 }
 
-func (b upsertBatch) writeBatch(ctx context.Context, writer *Writer) (int, error) {
-	return writer.UpsertVectors(ctx, b.vectors)
+func (b upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
+	written, err := index.UpsertVectors(&ctx, b.vectors)
+	return int(written), err
 }
 
 type deleteBatch struct {
 	ids []string
 }
 
-func (b deleteBatch) writeBatch(ctx context.Context, writer *Writer) (int, error) {
-	err := writer.DeleteVectorsByID(ctx, b.ids)
+func (b deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
+	err := index.DeleteVectorsById(&ctx, b.ids)
 	if err != nil {
 		return 0, err
 	}
