@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package pinecone
 
 //go:generate paramgen -output=paramgen_dest.go DestinationConfig
@@ -17,17 +31,22 @@ type Destination struct {
 }
 
 type DestinationConfig struct {
-	// PineconeAPIKey is the API Key for authenticating with Pinecone.
-	PineconeAPIKey string `json:"pinecone.apiKey" validate:"required"`
+	// APIKey is the API Key for authenticating with Pinecone.
+	APIKey string `json:"apiKey" validate:"required"`
 
-	// PineconeHostURL is the Pinecone index host URL
-	PineconeHostURL string `json:"pinecone.hostURL" validate:"required"`
+	// Host is the whole Pinecone index host URL.
+	Host string `json:"host" validate:"required"`
+
+	// Namespace is the Pinecone's index namespace. Defaults to the empty
+	// namespace.
+	Namespace string `json:"namespace"`
 }
 
 func (d DestinationConfig) toMap() map[string]string {
 	return map[string]string{
-		"pinecone.apiKey":  d.PineconeAPIKey,
-		"pinecone.hostURL": d.PineconeHostURL,
+		"apiKey":    d.APIKey,
+		"host":      d.Host,
+		"namespace": d.Namespace,
 	}
 }
 
@@ -36,41 +55,41 @@ func NewDestination() sdk.Destination {
 }
 
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring Pinecone Destination...")
 	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
 
 	return nil
 }
 
-func (d *Destination) Open(ctx context.Context) error {
-	sdk.Logger(ctx).Info().Msg("Opening a Pinecone Destination...")
-
-	newWriter, err := NewWriter(ctx, d.config)
+func (d *Destination) Open(ctx context.Context) (err error) {
+	d.writer, err = NewWriter(ctx, d.config)
 	if err != nil {
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
-	d.writer = newWriter
+
+	sdk.Logger(ctx).Info().Msg("created pinecone destination")
 
 	return nil
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	for i, record := range records {
-		err := sdk.Util.Destination.Route(ctx, record,
-			d.writer.Upsert,
-			d.writer.Upsert,
-			d.writer.Delete,
-			d.writer.Upsert,
-		)
-		if err != nil {
-			return i, fmt.Errorf("route %s: %w", record.Operation.String(), err)
-		}
-		sdk.Logger(ctx).Trace().Msg("wrote record")
+	batches, err := buildBatches(records)
+	if err != nil {
+		return 0, err
 	}
 
-	return len(records), nil
+	var written int
+	for _, batch := range batches {
+		batchWrittenRecs, err := batch.writeBatch(ctx, d.writer)
+		written += batchWrittenRecs
+		if err != nil {
+			return written, fmt.Errorf("failed to write record batch: %w", err)
+		}
+	}
+
+	return written, nil
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
