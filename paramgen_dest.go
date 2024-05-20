@@ -19,7 +19,7 @@ func (DestinationConfig) Parameters() map[string]sdk.Parameter {
 		},
 		"host": {
 			Default:     "",
-			Description: "host is the Pinecone index host URL",
+			Description: "host is the whole Pinecone index host URL.",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
