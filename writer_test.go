@@ -26,9 +26,9 @@ func TestRecordMetadata(t *testing.T) {
 
 	var rec sdk.Record
 	rec.Metadata = sdk.Metadata{
-		"created_at":     "2023-03-15T14:25:07Z",
-		"prop1": "a1",
-		"prop2": "a2",
+		"created_at": "2023-03-15T14:25:07Z",
+		"prop1":      "a1",
+		"prop2":      "a2",
 	}
 	recMetadata, err := parsePineconeMetadata(rec)
 	is.NoErr(err)

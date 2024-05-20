@@ -164,6 +164,7 @@ func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 	for key, value := range rec.Metadata {
 		convertedMap[key] = value
 	}
+
 	metadata, err := structpb.NewStruct(convertedMap)
 	if err != nil {
 		return nil, fmt.Errorf("error creating metadata: %w", err)

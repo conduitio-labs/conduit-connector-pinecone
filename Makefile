@@ -1,4 +1,4 @@
-.PHONY: build test test-integration generate install-paramgen install-tools golangci-lint-install
+.PHONY: build test generate install-paramgen install-tools golangci-lint-install
 
 VERSION=$(shell git describe --tags --dirty --always)
 
@@ -6,7 +6,7 @@ build:
 	go build -ldflags "-X 'github.com/conduitio/conduit-connector-pinecone.version=${VERSION}'" -o conduit-connector-pinecone cmd/connector/main.go
 
 test:
-	go test -v -race ./...
+	go test $(GOTEST_FLAGS) -race -v .
 
 generate:
 	go generate ./...

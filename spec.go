@@ -28,6 +28,6 @@ func Specification() sdk.Specification {
 		Name:    "pinecone",
 		Summary: "A pinecone destination plugin for Conduit, written in Go.",
 		Version: version,
-		Author:  "Adam Haffar",
+		Author:  "Meroxa, Inc.",
 	}
 }

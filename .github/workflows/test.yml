@@ -18,7 +18,7 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Run all tests
-        run: make test
+        run: make test GOTEST_FLAGS="-v -count=1"
         env:
           API_KEY: ${{ secrets.API_KEY }}
           HOST_URL: ${{ secrets.HOST_URL }}
