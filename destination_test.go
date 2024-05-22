@@ -25,7 +25,7 @@ import (
 func TestParsePineconeVector(t *testing.T) {
 	is := is.New(t)
 
-	vecToBeWritten := recordPayload{
+	vecToBeWritten := pineconeVector{
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{3, 5},

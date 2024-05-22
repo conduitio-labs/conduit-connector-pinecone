@@ -31,6 +31,8 @@ import (
 	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
+const maxRetries = 4
+
 func destConfigFromEnv(t *testing.T) DestinationConfig {
 	return DestinationConfig{
 		APIKey: requiredEnv(t, "API_KEY"),
@@ -70,7 +72,7 @@ func TestDestination_NamespaceSet(t *testing.T) {
 		"prop2": "val2",
 	}
 
-	vecsToBeWritten := recordPayload{
+	vecsToBeWritten := pineconeVector{
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{3, 5},
@@ -127,7 +129,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 		"prop2": "val2",
 	}
 
-	vecsToBeWritten := recordPayload{
+	vecsToBeWritten := pineconeVector{
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{3, 5},
@@ -155,14 +157,12 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	deleteAllRecords(is, index)
 }
 
-const maxRetries = 4
-
 func waitTime(i int) time.Duration {
 	wait := math.Pow(2, float64(i))
 	return time.Duration(wait) * time.Second
 }
 
-func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, id string, writtenVecs recordPayload) {
+func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, id string, writtenVecs pineconeVector) {
 	// Pinecone writes appear to be asynchronous. At the very least, in the current free tier serverless
 	// configuration that I've tested, pinecone writes occurred slightly after the RPC call
 	// returned data. Therefore, the following retry logic is needed to make tests more robust
@@ -239,16 +239,14 @@ func deleteAllRecords(is *is.I, index *pinecone.IndexConnection) {
 }
 
 func TestMain(t *testing.M) {
-	godotenv.Load()
+	// on development we want to be able to load the pinecone dynamic private
+	// variables into env vars. On CI we load them without an env file, so we
+	// ignore the possible error that godotenv.Load can give.
+	_ = godotenv.Load()
 
 	t.Run()
 }
 
-type connectorResource interface {
-	Teardown(ctx context.Context) error
-}
-
-func teardown(ctx context.Context, is *is.I, resource connectorResource) {
-	err := resource.Teardown(ctx)
-	is.NoErr(err)
+func teardown(ctx context.Context, is *is.I, dest sdk.Destination) {
+	is.NoErr(dest.Teardown(ctx))
 }

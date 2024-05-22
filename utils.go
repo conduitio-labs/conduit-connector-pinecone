@@ -68,12 +68,12 @@ type sparseValues struct {
 	Values  []float32 `json:"values"`
 }
 
-type recordPayload struct {
+type pineconeVector struct {
 	Values       []float32    `json:"values"`
 	SparseValues sparseValues `json:"sparse_values,omitempty"`
 }
 
-func (r recordPayload) PineconeSparseValues() *pinecone.SparseValues {
+func (r pineconeVector) PineconeSparseValues() *pinecone.SparseValues {
 	// the used pinecone go client needs a nil pointer when no sparse values given, or else it
 	// will throw a "Sparse vector must contain at least one value" error
 	if len(r.SparseValues.Indices) == 0 && len(r.SparseValues.Values) == 0 {
@@ -111,7 +111,7 @@ func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
 	return vec, nil
 }
 
-func parseRecordPayload(rec sdk.Record) (parsed recordPayload, err error) {
+func parseRecordPayload(rec sdk.Record) (parsed pineconeVector, err error) {
 	data := rec.Payload.After
 
 	if data == nil || len(data.Bytes()) == 0 {
@@ -138,78 +138,4 @@ func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
 	}
 
 	return metadata, nil
-}
-
-type recordBatch interface {
-	writeBatch(context.Context, *pinecone.IndexConnection) (int, error)
-}
-
-type upsertBatch struct {
-	vectors []*pinecone.Vector
-}
-
-func (b upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
-	written, err := index.UpsertVectors(&ctx, b.vectors)
-	if err != nil {
-		return 0, fmt.Errorf("failed to upsert vectors: %w", err)
-	}
-	return int(written), err
-}
-
-type deleteBatch struct {
-	ids []string
-}
-
-func (b deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
-	err := index.DeleteVectorsById(&ctx, b.ids)
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete vectors: %w", err)
-	}
-
-	return len(b.ids), nil
-}
-
-// buildBatches processes a slice of records and groups them into batches based
-// on their operation type. New batches are started whenever the operation type
-// switches from upsert to delete or vice versa.
-// Records are batched this way so that we preserve conduit's requirement of writing
-// records sequentially.
-func buildBatches(records []sdk.Record) ([]recordBatch, error) {
-	var batches []recordBatch
-	var currUpsertBatch upsertBatch
-	var currDeleteBatch deleteBatch
-
-	for i, rec := range records {
-		isLast := i == len(records)-1
-		switch rec.Operation {
-		case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
-			vec, err := parsePineconeVector(rec)
-			if err != nil {
-				return nil, err
-			}
-
-			currUpsertBatch.vectors = append(currUpsertBatch.vectors, vec)
-
-			if isLast {
-				batches = append(batches, currUpsertBatch)
-			}
-			if len(currDeleteBatch.ids) != 0 {
-				batches = append(batches, currDeleteBatch)
-				currDeleteBatch = deleteBatch{}
-			}
-		case sdk.OperationDelete:
-			id := recordID(rec.Key)
-			currDeleteBatch.ids = append(currDeleteBatch.ids, id)
-
-			if isLast {
-				batches = append(batches, currDeleteBatch)
-			}
-			if len(currUpsertBatch.vectors) != 0 {
-				batches = append(batches, currUpsertBatch)
-				currUpsertBatch = upsertBatch{}
-			}
-		}
-	}
-
-	return batches, nil
 }
