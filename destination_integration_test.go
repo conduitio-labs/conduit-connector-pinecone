@@ -72,7 +72,7 @@ func TestDestination_NamespaceSet(t *testing.T) {
 		"prop2": "val2",
 	}
 
-	vecsToBeWritten := pineconeVector{
+	vecsToBeWritten := pineconeVectorValues{
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{3, 5},
@@ -129,7 +129,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 		"prop2": "val2",
 	}
 
-	vecsToBeWritten := pineconeVector{
+	vecsToBeWritten := pineconeVectorValues{
 		Values: []float32{1, 2},
 		SparseValues: sparseValues{
 			Indices: []uint32{3, 5},
@@ -162,7 +162,7 @@ func waitTime(i int) time.Duration {
 	return time.Duration(wait) * time.Second
 }
 
-func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, id string, writtenVecs pineconeVector) {
+func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, id string, writtenVecs pineconeVectorValues) {
 	// Pinecone writes appear to be asynchronous. At the very least, in the current free tier serverless
 	// configuration that I've tested, pinecone writes occurred slightly after the RPC call
 	// returned data. Therefore, the following retry logic is needed to make tests more robust
