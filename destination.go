@@ -24,7 +24,6 @@ import (
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/pinecone-io/go-pinecone/pinecone"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -149,74 +148,44 @@ type sparseValues struct {
 	Values  []float32 `json:"values"`
 }
 
+func (s sparseValues) PineconeSparseValues() *pinecone.SparseValues {
+	return &pinecone.SparseValues{
+		Indices: s.Indices,
+		Values:  s.Values,
+	}
+}
+
 type pineconeVectorValues struct {
 	Values       []float32    `json:"values"`
 	SparseValues sparseValues `json:"sparse_values,omitempty"`
 }
 
-func (r pineconeVectorValues) PineconeSparseValues() *pinecone.SparseValues {
-	// the used pinecone go client needs a nil pointer when no sparse values given, or else it
-	// will throw a "Sparse vector must contain at least one value" error
-	if len(r.SparseValues.Indices) == 0 && len(r.SparseValues.Values) == 0 {
-		return nil
-	}
-
-	v := &pinecone.SparseValues{
-		Indices: r.SparseValues.Indices,
-		Values:  r.SparseValues.Values,
-	}
-	return v
-}
-
 func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
 	id := recordID(rec.Key)
 
-	payload, err := parsePineconeVectorValues(rec)
+	var vectorValues pineconeVectorValues
+	err := json.Unmarshal(rec.Payload.After.Bytes(), &vectorValues)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse record json: %w", err)
 	}
 
-	metadata, err := parsePineconeMetadata(rec)
+	structMap := make(map[string]any)
+	for key, value := range rec.Metadata {
+		structMap[key] = value
+	}
+
+	metadata, err := structpb.NewStruct(structMap)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error protobuf struct: %w", err)
 	}
 
 	vec := &pinecone.Vector{
 		//revive:disable-next-line
 		Id:           id,
-		Values:       payload.Values,
-		SparseValues: payload.PineconeSparseValues(),
+		Values:       vectorValues.Values,
+		SparseValues: vectorValues.SparseValues.PineconeSparseValues(),
 		Metadata:     metadata,
 	}
 
 	return vec, nil
-}
-
-func parsePineconeVectorValues(rec sdk.Record) (values pineconeVectorValues, err error) {
-	data := rec.Payload.After
-
-	if data == nil || len(data.Bytes()) == 0 {
-		return values, errors.New("empty payload")
-	}
-
-	err = json.Unmarshal(data.Bytes(), &values)
-	if err != nil {
-		return values, fmt.Errorf("error unmarshalling JSON: %w", err)
-	}
-
-	return values, nil
-}
-
-func parsePineconeMetadata(rec sdk.Record) (*pinecone.Metadata, error) {
-	convertedMap := make(map[string]any)
-	for key, value := range rec.Metadata {
-		convertedMap[key] = value
-	}
-
-	metadata, err := structpb.NewStruct(convertedMap)
-	if err != nil {
-		return nil, fmt.Errorf("error creating metadata: %w", err)
-	}
-
-	return metadata, nil
 }

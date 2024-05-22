@@ -88,3 +88,27 @@ func TestParseRecords(t *testing.T) {
 		assertUpsertBatch(is, batches[4], "key8", "key9")
 	})
 }
+
+func testRecords(op sdk.Operation, keys ...string) []sdk.Record {
+	recs := make([]sdk.Record, len(keys))
+	for i := range recs {
+		var position sdk.Position
+		var key sdk.Data = sdk.RawData(keys[i])
+		var metadata sdk.Metadata
+		var payload sdk.Data = sdk.StructuredData{
+			"vector": []float64{1, 2},
+		}
+
+		rec := sdk.Record{
+			Position: position, Operation: op,
+			Metadata: metadata, Key: key,
+			Payload: sdk.Change{
+				Before: nil,
+				After:  payload,
+			},
+		}
+		recs[i] = rec
+	}
+
+	return recs
+}
