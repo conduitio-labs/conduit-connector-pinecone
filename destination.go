@@ -97,5 +97,8 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 func (d *Destination) Teardown(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
 
-	return d.index.Close()
+	if err := d.index.Close(); err != nil {
+		return fmt.Errorf("failed to close index: %w", err)
+	}
+	return nil
 }

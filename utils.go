@@ -150,6 +150,9 @@ type upsertBatch struct {
 
 func (b upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
 	written, err := index.UpsertVectors(&ctx, b.vectors)
+	if err != nil {
+		return 0, fmt.Errorf("failed to upsert vectors: %w", err)
+	}
 	return int(written), err
 }
 
@@ -160,7 +163,7 @@ type deleteBatch struct {
 func (b deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
 	err := index.DeleteVectorsById(&ctx, b.ids)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to delete vectors: %w", err)
 	}
 
 	return len(b.ids), nil
