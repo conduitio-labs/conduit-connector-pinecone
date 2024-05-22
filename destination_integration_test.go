@@ -124,10 +124,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 
 	id := uuid.NewString()
 	position := sdk.Position(fmt.Sprintf("pos-%v", id))
-	metadata := map[string]string{
-		"prop1": "val1",
-		"prop2": "val2",
-	}
+	metadata := map[string]string{"prop1": "val1", "prop2": "val2"}
 
 	vecsToBeWritten := pineconeVectorValues{
 		Values: []float32{1, 2},
@@ -140,19 +137,34 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	payload, err := json.Marshal(vecsToBeWritten)
 	is.NoErr(err)
 
-	rec := sdk.Util.Source.NewRecordCreate(position, metadata, sdk.RawData(id), sdk.RawData(payload))
-	_, err = dest.Write(ctx, []sdk.Record{rec})
-	is.NoErr(err)
-
 	index := createIndex(is, destCfg)
 
-	assertWrittenRecordIndex(ctx, t, is, index, id, vecsToBeWritten)
+	for _, op := range []sdk.Operation{
+		sdk.OperationCreate,
+		sdk.OperationUpdate,
+		sdk.OperationSnapshot,
+	} {
+		rec := sdk.Record{
+			Position:  position,
+			Operation: op,
+			Metadata:  metadata,
+			Key:       sdk.RawData(id),
+			Payload: sdk.Change{
+				Before: nil,
+				After:  sdk.RawData(payload),
+			},
+		}
+		_, err = dest.Write(ctx, []sdk.Record{rec})
+		is.NoErr(err)
 
-	rec = sdk.Util.Source.NewRecordDelete(position, metadata, sdk.RawData(id))
-	_, err = dest.Write(ctx, []sdk.Record{rec})
-	is.NoErr(err)
+		assertWrittenRecordIndex(ctx, t, is, index, id, vecsToBeWritten)
 
-	assertDeletedRecordIndex(ctx, t, is, index, id)
+		rec = sdk.Util.Source.NewRecordDelete(position, metadata, sdk.RawData(id))
+		_, err = dest.Write(ctx, []sdk.Record{rec})
+		is.NoErr(err)
+
+		assertDeletedRecordIndex(ctx, t, is, index, id)
+	}
 
 	deleteAllRecords(is, index)
 }
