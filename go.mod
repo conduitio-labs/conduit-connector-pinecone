@@ -11,7 +11,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/matryer/is v1.4.1
 	github.com/pinecone-io/go-pinecone v0.4.1
-	github.com/pkg/errors v0.9.1
 	google.golang.org/protobuf v1.34.1
 )
 
