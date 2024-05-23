@@ -253,8 +253,11 @@ func deleteAllRecords(is *is.I, index *pinecone.IndexConnection) {
 func TestMain(t *testing.M) {
 	// on development we want to be able to load the pinecone dynamic private
 	// variables into env vars. On CI we load them without an env file, so we
-	// ignore the possible error that godotenv.Load can give.
-	_ = godotenv.Load()
+	// just log the possible error that is given.
+	if err := godotenv.Load(); err != nil {
+		sdk.Logger(context.Background()).Err(err).
+			Msg("failed to load env variables from .env file, assuming github ci has the required env vars")
+	}
 
 	t.Run()
 }
