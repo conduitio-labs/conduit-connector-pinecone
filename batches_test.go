@@ -48,7 +48,7 @@ func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 	is.Equal(deleteBatch.ids, keys)
 }
 
-func TestParseRecords(t *testing.T) {
+func TestBuildBatches(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
