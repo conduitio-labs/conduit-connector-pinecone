@@ -18,22 +18,33 @@ import (
 	"testing"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/google/uuid"
 	"github.com/matryer/is"
 )
 
-func assertUpsertBatch(is *is.I, batch recordBatch, keys ...string) {
+func assertUpsertBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 	upsertBatch, ok := batch.(upsertBatch)
 	is.True(ok) // batch isn't upsertBatch
 
-	is.Equal(len(upsertBatch.vectors), len(keys))
 	for i, vec := range upsertBatch.vectors {
-		is.Equal(vec.Id, keys[i])
+		rec := records[i]
+
+		parsed, err := parsePineconeVector(rec)
+		is.NoErr(err)
+
+		is.Equal(vec, parsed)
 	}
 }
 
-func assertDeleteBatch(is *is.I, batch recordBatch, keys ...string) {
+func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 	deleteBatch, ok := batch.(deleteBatch)
 	is.True(ok) // batch isn't deleteBatch
+
+	keys := make([]string, len(records))
+	for i, rec := range records {
+		keys[i] = string(rec.Key.Bytes())
+	}
+
 	is.Equal(deleteBatch.ids, keys)
 }
 
@@ -54,7 +65,7 @@ func TestParseRecords(t *testing.T) {
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
-		assertDeleteBatch(is, batches[0], "key1", "key2")
+		assertDeleteBatch(is, batches[0], records)
 	})
 
 	t.Run("only non delete", func(t *testing.T) {
@@ -64,37 +75,49 @@ func TestParseRecords(t *testing.T) {
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
-		assertUpsertBatch(is, batches[0], "key1", "key2")
+		assertUpsertBatch(is, batches[0], records)
 	})
 
 	t.Run("multiple ops", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
-		records = append(records, testRecords(sdk.OperationUpdate, "key1")...)
-		records = append(records, testRecords(sdk.OperationDelete, "key2", "key3")...)
-		records = append(records, testRecords(sdk.OperationCreate, "key4", "key5", "key6")...)
-		records = append(records, testRecords(sdk.OperationDelete, "key7")...)
-		records = append(records, testRecords(sdk.OperationSnapshot, "key8", "key9")...)
+		batch0 := testRecords(sdk.OperationUpdate, "key1")
+		records = append(records, batch0...)
+
+		batch1 := testRecords(sdk.OperationDelete, "key2", "key3")
+		records = append(records, batch1...)
+
+		batch2 := testRecords(sdk.OperationCreate, "key4", "key5", "key6")
+		records = append(records, batch2...)
+
+		batch3 := testRecords(sdk.OperationDelete, "key7")
+		records = append(records, batch3...)
+
+		batch4 := testRecords(sdk.OperationSnapshot, "key8", "key9")
+		records = append(records, batch4...)
 
 		batches, err := buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 5)
 
-		assertUpsertBatch(is, batches[0], "key1")
-		assertDeleteBatch(is, batches[1], "key2", "key3")
-		assertUpsertBatch(is, batches[2], "key4", "key5", "key6")
-		assertDeleteBatch(is, batches[3], "key7")
-		assertUpsertBatch(is, batches[4], "key8", "key9")
+		assertUpsertBatch(is, batches[0], batch0)
+		assertDeleteBatch(is, batches[1], batch1)
+		assertUpsertBatch(is, batches[2], batch2)
+		assertDeleteBatch(is, batches[3], batch3)
+		assertUpsertBatch(is, batches[4], batch4)
 	})
 }
 
 func testRecords(op sdk.Operation, keys ...string) []sdk.Record {
 	recs := make([]sdk.Record, len(keys))
 	for i := range recs {
-		var position sdk.Position
-		var key sdk.Data = sdk.RawData(keys[i])
-		var metadata sdk.Metadata
+		position := sdk.Position(randString())
+		key := sdk.RawData(keys[i])
+		metadata := sdk.Metadata{
+			randString(): randString(),
+			randString(): randString(),
+		}
 		var payload sdk.Data = sdk.StructuredData{
 			"vector": []float64{1, 2},
 		}
@@ -112,3 +135,5 @@ func testRecords(op sdk.Operation, keys ...string) []sdk.Record {
 
 	return recs
 }
+
+func randString() string { return uuid.NewString()[0:8] }
