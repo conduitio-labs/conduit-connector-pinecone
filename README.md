@@ -1,15 +1,15 @@
 # Conduit Connector for Pinecone
 
-The Pinecone connector is one of [Conduit](https://github.com/ConduitIO/conduit) builtin plugins. It provides both, a source and a destination connector for [Pinecone](https://www.pinecone.io/).
+The Pinecone connector is one of [Conduit](https://github.com/ConduitIO/conduit) builtin plugins. It provides both, a source and a destination connector for [Pinecone](https://www.Pinecone.io/).
 
-It uses the [grpc go Pinecone client](github.com/pinecone-io/go-pinecone) to connect to Pinecone.
+It uses the [grpc go Pinecone client](github.com/Pinecone-io/go-Pinecone) to connect to Pinecone.
 
 ## What data does the OpenCDC record consist of?
 
 | Field                   | Description                                                                             |
 |-------------------------|-----------------------------------------------------------------------------------------|
 | `record.Operation`      | which conduit operation does the record do.                                             |
-| `record.Metadata`       | a string to string map representing the pinecone vector metadata.                       |
+| `record.Metadata`       | a string to string map representing the Pinecone vector metadata.                       |
 | `record.Key`            | the vector id that is being updated.                                                    |
 | `record.Payload.Before` | <empty>                                                                                 |
 | `record.Payload.After`  | the vector body, in json format             | 
@@ -36,5 +36,8 @@ To perform the tests locally you'll need the `API_KEY` and `HOST_URL` environmen
 |------------------------|-----------------------------------------------------------------------------|----------|---------------|
 | `apiKey`            | The Pinecone api key.                          | Yes      |               |
 | `host`            | The Pinecone index host.                          | Yes      |               |
-| `namespace`            | The Pinecone namespace to target. Defaults to the default pinecone namespace                           | No      |               |
+| `namespace`            | The Pinecone namespace to target. Defaults to the default Pinecone namespace                           | No      |               |
 
+## Example pipeline configuration
+
+[Here's](./pipeline.destination.yml) an example of a complete configuration pipeline for a Pinecone destination connector.

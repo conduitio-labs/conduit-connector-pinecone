@@ -1,0 +1,21 @@
+version: 2.0
+pipelines:
+  - id: pinecone-to-file
+    status: running
+    connectors:
+      - id: pinecone.in
+        type: source
+        plugin: standalone:pinecone
+        name: pinecone-source
+        settings:
+          apiKey: YOUR_API_KEY
+          host: YOUR_INDEX_HOST
+
+      - id: file.out
+        type: destination
+        plugin: builtin:file
+        name: file-destination
+        settings:
+          path: ./file.out
+          sdk.record.format: template
+          sdk.record.format.options: '{{ printf "%s" .Payload.After }}'
