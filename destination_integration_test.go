@@ -138,6 +138,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	is.NoErr(err)
 
 	index := createIndex(is, destCfg)
+	defer deleteAllRecords(is, index)
 
 	for _, op := range []sdk.Operation{
 		sdk.OperationCreate,
@@ -165,8 +166,6 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 
 		assertDeletedRecordIndex(ctx, t, is, index, id)
 	}
-
-	deleteAllRecords(is, index)
 }
 
 func waitTime(i int) time.Duration {
