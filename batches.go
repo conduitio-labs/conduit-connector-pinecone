@@ -51,7 +51,7 @@ func buildBatches(records []sdk.Record) ([]recordBatch, error) {
 				currDeleteBatch = deleteBatch{}
 			}
 		case sdk.OperationDelete:
-			id := recordID(rec.Key)
+			id := vectorID(rec.Key)
 			currDeleteBatch.ids = append(currDeleteBatch.ids, id)
 
 			if isLast {
