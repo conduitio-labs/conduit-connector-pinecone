@@ -26,9 +26,12 @@ Run `make build` to compile the connector.
 
 To perform the tests locally you'll need the `API_KEY` and `HOST_URL` environment variables set. To do so:
 
-1. Open the `.env.example` file and fill up the variables.
-2. Rename `.env.example` to `.env`
-3. Run `make test` to run all tests.
+1. You'll need to setup a new account if you don't have it at https://www.pinecone.io/   
+2. Create a new index with `cosine` as the metric, and copy the host url.
+3. Create a new api key.
+4. Open the `.env.example` file and fill up the variables.
+5. Rename `.env.example` to `.env`
+6. Finally run `make test` to run all tests.                       
 
 ## Destination Configuration Parameters
 
