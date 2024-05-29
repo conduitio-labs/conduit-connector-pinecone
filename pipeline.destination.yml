@@ -1,16 +1,8 @@
 version: 2.2
 pipelines:
-  - id: pinecone-to-file
+  - id: file-to-pinecone
     status: running
     connectors:
-      - id: pinecone.in
-        type: source
-        plugin: standalone:pinecone
-        name: pinecone-source
-        settings:
-          apiKey: YOUR_API_KEY
-          host: YOUR_INDEX_HOST
-
       - id: file.out
         type: destination
         plugin: builtin:file

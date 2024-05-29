@@ -4,21 +4,29 @@ The Pinecone connector is one of [Conduit](https://github.com/ConduitIO/conduit)
 
 It uses the [gRPC go Pinecone client](github.com/Pinecone-io/go-Pinecone) to connect to Pinecone.
 
-## Which OpenCDC data format does the destination connector accept?
+## How is the pinecone vector written?
 
-The destination connector expects an OpenCDC formatted record with the following fields
+Upsert and delete operations are batched while preserving Conduit's write order guarantee.
 
-| Field                   | Description                                                                             |
-|-------------------------|-----------------------------------------------------------------------------------------|
-| `record.Operation`      | which conduit operation does the record do.                                             |
-| `record.Metadata`       | a string to string map representing the Pinecone vector metadata.                       |
-| `record.Key`            | the vector id that is being updated.                                                    |
-| `record.Payload.Before` | <discarded>                                                                                 |
-| `record.Payload.After`  | the vector body, in json format             | 
-| `(json) record.Payload.After.values`  | an array of float32 representing the vector values              | 
-| `(json) record.Payload.After.sparse_values`  | **(optional)** the sparse vector values               | 
-| `(json) record.Payload.After.sparse_values.indices`  | an array of uint32 representing the sparse vector indices              | 
-| `(json) record.Payload.After.sparse_values.values`  | an array of float32 representing the sparse vector values               | 
+| Field                   | Description                                                                                                                                     |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `record.Operation`      | create, update and snapshot ops will be considered as vector upsert operations. Delete op will delete the vector using the record key.                                                                                                       |
+| `record.Metadata`       | represents the pinecone vector metadata. All the record metadata is written as-is to it.                        |
+| `record.Key`            | represents the vector id.                                                                                                           |
+| `record.Payload.Before` | discarded, won't be used.                                                                                                                                     |
+| `record.Payload.After`  | the vector body, in json format. Ignored in the delete op                                                                                                                 | 
+
+## What OpenCDC data format does the destination connector accept?
+
+The destination connector expects the `record.Payload.After` to be JSON formatted as follows:
+
+| Field                   | Description                                                                                                                                     |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `record.Payload.After`  | both RawData (with json inside) and StructuredData conduit types are accepted. However, note that if the underlying type is StructuredData it will be marshaled and unmarshaled back redundantly, unlike RawData.               | 
+| `record.Payload.After.values`  | an array of float32 representing the vector values              | 
+| `record.Payload.After.sparse_values`  | **(optional)** the sparse vector values               | 
+| `record.Payload.After.sparse_values.indices`  | an array of uint32 representing the sparse vector indices              | 
+| `record.Payload.After.sparse_values.values`  | an array of float32 representing the sparse vector values               | 
 
 ## How to Build?
 
