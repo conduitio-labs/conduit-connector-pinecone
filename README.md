@@ -1,17 +1,19 @@
-# Conduit Connector for Pinecone
+# Conduit destination connector for Pinecone
 
-The Pinecone connector is one of [Conduit](https://github.com/ConduitIO/conduit) builtin plugins. It provides both, a source and a destination connector for [Pinecone](https://www.Pinecone.io/).
+The Pinecone connector is one of [Conduit](https://github.com/ConduitIO/conduit) standalone plugins. It provides a destination connector for [Pinecone](https://www.Pinecone.io/).
 
 It uses the [gRPC go Pinecone client](github.com/Pinecone-io/go-Pinecone) to connect to Pinecone.
 
-## What data does the OpenCDC record consist of?
+## Which OpenCDC data format does the destination connector accept?
+
+The destination connector expects an OpenCDC formatted record with the following fields
 
 | Field                   | Description                                                                             |
 |-------------------------|-----------------------------------------------------------------------------------------|
 | `record.Operation`      | which conduit operation does the record do.                                             |
 | `record.Metadata`       | a string to string map representing the Pinecone vector metadata.                       |
 | `record.Key`            | the vector id that is being updated.                                                    |
-| `record.Payload.Before` | <empty>                                                                                 |
+| `record.Payload.Before` | <discarded>                                                                                 |
 | `record.Payload.After`  | the vector body, in json format             | 
 | `(json) record.Payload.After.values`  | an array of float32 representing the vector values              | 
 | `(json) record.Payload.After.sparse_values`  | **(optional)** the sparse vector values               | 
@@ -43,4 +45,4 @@ To perform the tests locally you'll need the `API_KEY` and `HOST_URL` environmen
 
 ## Example pipeline configuration
 
-[Here's](./pipeline.destination.yml) an example of a complete configuration pipeline for a Pinecone destination connector.
+[Here's](./pipeline.destination.yml) an example of a complete configuration pipeline for the Pinecone destination connector.
