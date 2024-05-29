@@ -2,7 +2,7 @@
 
 The Pinecone connector is one of [Conduit](https://github.com/ConduitIO/conduit) builtin plugins. It provides both, a source and a destination connector for [Pinecone](https://www.Pinecone.io/).
 
-It uses the [grpc go Pinecone client](github.com/Pinecone-io/go-Pinecone) to connect to Pinecone.
+It uses the [gRPC go Pinecone client](github.com/Pinecone-io/go-Pinecone) to connect to Pinecone.
 
 ## What data does the OpenCDC record consist of?
 
