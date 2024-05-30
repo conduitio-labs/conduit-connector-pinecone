@@ -139,7 +139,7 @@ func newIndex(ctx context.Context, config DestinationConfig) (*pinecone.IndexCon
 	return index, nil
 }
 
-func recordID(key sdk.Data) string {
+func vectorID(key sdk.Data) string {
 	return string(key.Bytes())
 }
 
@@ -161,7 +161,7 @@ type pineconeVectorValues struct {
 }
 
 func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
-	id := recordID(rec.Key)
+	id := vectorID(rec.Key)
 
 	var vectorValues pineconeVectorValues
 	err := json.Unmarshal(rec.Payload.After.Bytes(), &vectorValues)
