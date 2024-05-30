@@ -3,11 +3,17 @@ pipelines:
   - id: file-to-pinecone
     status: running
     connectors:
-      - id: file.out
-        type: destination
+      - id: file.in
+        type: source
         plugin: builtin:file
-        name: file-destination
         settings:
-          path: ./file.out
+          path: ./file.in
+      - id: pinecone.out
+        type: destination
+        plugin: standalone:conduit-connector-pinecone
+        name: pinecone-destination
+        settings:
+          apiKey: ${API_KEY}
+          host: ${HOST_URL}
           sdk.record.format: template
           sdk.record.format.options: '{{ printf "%s" .Payload.After }}'
