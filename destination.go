@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
+	"text/template"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/pinecone-io/go-pinecone/pinecone"
@@ -31,6 +33,8 @@ type Destination struct {
 	sdk.UnimplementedDestination
 
 	config DestinationConfig
+
+	multiCollectionTempl *template.Template
 
 	index *pinecone.IndexConnection
 }
@@ -59,17 +63,28 @@ func NewDestination() sdk.Destination {
 	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
 }
 
-func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	if err := sdk.Util.ParseConfig(cfg, &d.config); err != nil {
+func (d *Destination) Configure(ctx context.Context, cfg map[string]string) (err error) {
+	if err = sdk.Util.ParseConfig(cfg, &d.config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
+
+	if isTextTemplate(d.config.Host) {
+		d.multiCollectionTempl, err = template.New("collection").Parse(d.config.Host)
+		if err != nil {
+			return fmt.Errorf("failed to parse host template %s: %w", d.config.Host, err)
+		}
+	}
 
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) (err error) {
-	d.index, err = newIndex(ctx, d.config)
+	d.index, err = newIndex(ctx, newIndexParams{
+		apiKey:    d.config.APIKey,
+		host:      d.config.Host,
+		namespace: d.config.Namespace,
+	})
 	if err != nil {
 		return fmt.Errorf("error creating a new writer: %w", err)
 	}
@@ -80,7 +95,7 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := buildBatches(records)
+	batches, err := d.buildBatches(records)
 	if err != nil {
 		return 0, err
 	}
@@ -106,27 +121,33 @@ func (d *Destination) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func newIndex(ctx context.Context, config DestinationConfig) (*pinecone.IndexConnection, error) {
+type newIndexParams struct {
+	apiKey    string
+	host      string
+	namespace string
+}
+
+func newIndex(ctx context.Context, params newIndexParams) (*pinecone.IndexConnection, error) {
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
-		ApiKey: config.APIKey,
+		ApiKey: params.apiKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating Pinecone client: %w", err)
 	}
 	sdk.Logger(ctx).Info().Msg("created pinecone client")
 
-	hostURL, err := url.Parse(config.Host)
+	hostURL, err := url.Parse(params.host)
 	if err != nil {
 		return nil, fmt.Errorf("invalid host url: %w", err)
 	}
 
 	var index *pinecone.IndexConnection
-	if config.Namespace != "" {
-		index, err = client.IndexWithNamespace(hostURL.Host, config.Namespace)
+	if params.namespace != "" {
+		index, err = client.IndexWithNamespace(hostURL.Host, params.namespace)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"error establishing index connection to namespace %v: %w",
-				config.Namespace, err)
+				params.namespace, err)
 		}
 	} else {
 		index, err = client.Index(hostURL.Host)
@@ -188,4 +209,8 @@ func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
 	}
 
 	return vec, nil
+}
+
+func isTextTemplate(s string) bool {
+	return strings.Contains(s, "{{") && strings.Contains(s, "}}")
 }

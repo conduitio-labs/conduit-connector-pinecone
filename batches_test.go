@@ -15,6 +15,7 @@
 package pinecone
 
 import (
+	"math/rand"
 	"testing"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -48,11 +49,14 @@ func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 	is.Equal(deleteBatch.ids, keys)
 }
 
-func TestBuildBatches(t *testing.T) {
+func TestBuildBatchesWithoutCollection(t *testing.T) {
+
+	dest := Destination{}
+
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
-		batches, err := buildBatches(records)
+		batches, err := dest.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 0)
@@ -60,8 +64,8 @@ func TestBuildBatches(t *testing.T) {
 
 	t.Run("only delete", func(t *testing.T) {
 		is := is.New(t)
-		records := testRecords(sdk.OperationDelete, "key1", "key2")
-		batches, err := buildBatches(records)
+		records := testRecords(sdk.OperationDelete)
+		batches, err := dest.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -70,8 +74,8 @@ func TestBuildBatches(t *testing.T) {
 
 	t.Run("only non delete", func(t *testing.T) {
 		is := is.New(t)
-		records := testRecords(sdk.OperationCreate, "key1", "key2")
-		batches, err := buildBatches(records)
+		records := testRecords(sdk.OperationCreate)
+		batches, err := dest.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -81,22 +85,22 @@ func TestBuildBatches(t *testing.T) {
 	t.Run("multiple ops", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
-		batch0 := testRecords(sdk.OperationUpdate, "key1")
+		batch0 := testRecords(sdk.OperationUpdate)
 		records = append(records, batch0...)
 
-		batch1 := testRecords(sdk.OperationDelete, "key2", "key3")
+		batch1 := testRecords(sdk.OperationDelete)
 		records = append(records, batch1...)
 
-		batch2 := testRecords(sdk.OperationCreate, "key4", "key5", "key6")
+		batch2 := testRecords(sdk.OperationCreate)
 		records = append(records, batch2...)
 
-		batch3 := testRecords(sdk.OperationDelete, "key7")
+		batch3 := testRecords(sdk.OperationDelete)
 		records = append(records, batch3...)
 
-		batch4 := testRecords(sdk.OperationSnapshot, "key8", "key9")
+		batch4 := testRecords(sdk.OperationSnapshot)
 		records = append(records, batch4...)
 
-		batches, err := buildBatches(records)
+		batches, err := dest.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 5)
@@ -109,15 +113,86 @@ func TestBuildBatches(t *testing.T) {
 	})
 }
 
-func testRecords(op sdk.Operation, keys ...string) []sdk.Record {
-	recs := make([]sdk.Record, len(keys))
-	for i := range recs {
+func TestBuildBatchesWithCollection(t *testing.T) {
+	dest := Destination{
+		config: DestinationConfig{
+			APIKey:    "xxxx",
+			Host:      "",
+			Namespace: "",
+		},
+	}
+
+	t.Run("some records without destination", func(t *testing.T) {
+		is := is.New(t)
+
+		var records []sdk.Record
+
+		batch0 := testRecordsDestination(sdk.OperationUpdate, &batchCollection{
+			indexHost: "https://host1.com",
+			namespace: "", // default namespace
+		})
+		records = append(records, batch0...)
+
+		batch1 := testRecords(sdk.OperationDelete)
+		records = append(records, batch1...)
+
+		batch2 := testRecordsDestination(sdk.OperationDelete, &batchCollection{
+			indexHost: "https://host3.com",
+			namespace: "namespace2",
+		})
+		records = append(records, batch2...)
+
+		_, err := buildBatches(records)
+		is.Equal(err, errCollectionFieldNotFound)
+	})
+
+	t.Run("different destinations", func(t *testing.T) {
+		is := is.New(t)
+
+		var records []sdk.Record
+
+		batch0 := testRecordsDestination(sdk.OperationUpdate, &batchCollection{
+			indexHost: "https://host1.com",
+			namespace: "", // default namespace
+		})
+		records = append(records, batch0...)
+
+		batch1 := testRecordsDestination(sdk.OperationDelete, &batchCollection{
+			indexHost: "https://host2.com",
+			namespace: "namespace2",
+		})
+		records = append(records, batch1...)
+
+		batch2 := testRecordsDestination(sdk.OperationDelete, &batchCollection{
+			indexHost: "https://host3.com",
+			namespace: "namespace2",
+		})
+		records = append(records, batch2...)
+
+		batches, err := buildBatches(records)
+		is.NoErr(err)
+
+		assertUpsertBatch(is, batches[0], batch0)
+		assertDeleteBatch(is, batches[1], batch1)
+		assertDeleteBatch(is, batches[2], batch2)
+	})
+}
+
+func testRecordsDestination(op sdk.Operation, maybeDest *batchCollection) []sdk.Record {
+	total := rand.Intn(10) + 1
+	recs := make([]sdk.Record, total)
+
+	for i := range total {
 		position := sdk.Position(randString())
-		key := sdk.RawData(keys[i])
+		key := sdk.RawData(randString())
 		metadata := sdk.Metadata{
 			randString(): randString(),
 			randString(): randString(),
 		}
+		if maybeDest != nil {
+			metadata.SetCollection(maybeDest.String())
+		}
+
 		var payload sdk.Data = sdk.StructuredData{
 			"vector": []float64{1, 2},
 		}
@@ -126,7 +201,7 @@ func testRecords(op sdk.Operation, keys ...string) []sdk.Record {
 			Position: position, Operation: op,
 			Metadata: metadata, Key: key,
 			Payload: sdk.Change{
-				Before: nil,
+				Before: nil, // discarded, the Pinecone destination connector doesn't use this field
 				After:  payload,
 			},
 		}
@@ -134,6 +209,10 @@ func testRecords(op sdk.Operation, keys ...string) []sdk.Record {
 	}
 
 	return recs
+}
+
+func testRecords(op sdk.Operation) []sdk.Record {
+	return testRecordsDestination(op, nil)
 }
 
 func randString() string { return uuid.NewString()[0:8] }
