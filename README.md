@@ -49,7 +49,7 @@ To perform the tests locally you'll need the `API_KEY` and `HOST_URL` environmen
 
 | Name                   | Description                                                                 | Required | Default Value |
 |------------------------|-----------------------------------------------------------------------------|----------|---------------|
-| `apiKey`            | The Pinecone api key.                          | Yes      |               |
+| `apiKey`            | The Pinecone API key.                          | Yes      |               |
 | `host`            | The Pinecone index host.                          | Yes      |               |
 | `namespace`            | The Pinecone namespace to target. Defaults to the default Pinecone namespace                           | No      |               |
 
