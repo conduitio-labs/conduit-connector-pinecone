@@ -114,60 +114,6 @@ func TestSingleCollectionWriter(t *testing.T) {
 	})
 }
 
-// func TestMultiCollectionWriter(t *testing.T) {
-// 	t.Run("some records without destination", func(t *testing.T) {
-// 		is := is.New(t)
-
-// 		multicolWriter := multicollectionWriter{
-// 			apiKey:            "",
-// 			host:              "",
-// 			indexes:           cmap.ConcurrentMap{},
-// 			namespaceTemplate: &template.Template{},
-// 		}
-
-// 		var records []sdk.Record
-
-// 		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
-// 		records = append(records, batch0...)
-
-// 		batch1 := testRecords(sdk.OperationDelete)
-// 		records = append(records, batch1...)
-
-// 		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
-// 		records = append(records, batch2...)
-
-// 		batches, err := buildBatches(records, true)
-// 		is.NoErr(err)
-
-// 		assertUpsertBatch(is, batches[0], batch0)
-// 		assertDeleteBatch(is, batches[1], batch1)
-// 		assertDeleteBatch(is, batches[2], batch2)
-
-// 	})
-
-// 	t.Run("different destinations", func(t *testing.T) {
-// 		is := is.New(t)
-
-// 		var records []sdk.Record
-
-// 		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
-// 		records = append(records, batch0...)
-
-// 		batch1 := testRecordsWithNamespace(sdk.OperationDelete, "namespace1")
-// 		records = append(records, batch1...)
-
-// 		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
-// 		records = append(records, batch2...)
-
-// 		batches, err := buildBatches(records, true)
-// 		is.NoErr(err)
-
-// 		assertUpsertBatch(is, batches[0], batch0)
-// 		assertDeleteBatch(is, batches[1], batch1)
-// 		assertDeleteBatch(is, batches[2], batch2)
-// 	})
-// }
-
 func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 	total := rand.Intn(3) + 1
 	recs := make([]sdk.Record, total)

@@ -16,6 +16,7 @@ package pinecone
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"text/template"
@@ -102,6 +103,7 @@ func (b *deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConne
 
 type collectionWriter interface {
 	writeRecords(context.Context, []sdk.Record) (int, error)
+	close() error
 }
 
 type multicollectionWriter struct {
@@ -109,6 +111,15 @@ type multicollectionWriter struct {
 
 	indexes           cmap.ConcurrentMap[string, *pinecone.IndexConnection]
 	namespaceTemplate *template.Template
+}
+
+func newMulticollectionWriter(apiKey, host string, template *template.Template) *multicollectionWriter {
+	return &multicollectionWriter{
+		apiKey:            apiKey,
+		host:              host,
+		indexes:           cmap.New[*pinecone.IndexConnection](),
+		namespaceTemplate: template,
+	}
 }
 
 const defaultNamespace = "(default)"
@@ -237,6 +248,19 @@ func (w *multicollectionWriter) writeRecords(ctx context.Context, records []sdk.
 	return written, nil
 }
 
+func (w *multicollectionWriter) close() error {
+	var err error
+	for tuple := range w.indexes.IterBuffered() {
+		err = errors.Join(err, tuple.Val.Close())
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to close indexes: %w", err)
+	}
+
+	return nil
+}
+
 type singleCollectionWriter struct {
 	index *pinecone.IndexConnection
 }
@@ -301,4 +325,8 @@ func (w *singleCollectionWriter) writeRecords(ctx context.Context, records []sdk
 	}
 
 	return written, nil
+}
+
+func (w *singleCollectionWriter) close() error {
+	return w.index.Close()
 }

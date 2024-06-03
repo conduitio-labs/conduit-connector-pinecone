@@ -34,13 +34,7 @@ type Destination struct {
 
 	config DestinationConfig
 
-	isMultitemplate bool
-
 	colWriter collectionWriter
-
-	multiCollectionTempl *template.Template
-
-	index *pinecone.IndexConnection
 }
 
 type DestinationConfig struct {
@@ -73,29 +67,31 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) (err
 	}
 	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
 
-	if isTextTemplate(d.config.Namespace) {
-		d.isMultitemplate = true
-		d.multiCollectionTempl, err = template.New("collection").Parse(d.config.Namespace)
-		if err != nil {
-			return fmt.Errorf("failed to parse namespace template %s: %w", d.config.Namespace, err)
-		}
-
-	} else if d.config.Namespace == "" {
-		d.isMultitemplate = true
-		// parse namespace from opencdc.collection
-	}
-
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) (err error) {
-	d.index, err = newIndex(ctx, newIndexParams{
-		apiKey:    d.config.APIKey,
-		host:      d.config.Host,
-		namespace: d.config.Namespace,
-	})
-	if err != nil {
-		return fmt.Errorf("error creating a new writer: %w", err)
+	if isGoTextTemplate(d.config.Namespace) {
+		template, err := template.New("collection").Parse(d.config.Namespace)
+		if err != nil {
+			return fmt.Errorf("failed to parse namespace template %s: %w", d.config.Namespace, err)
+		}
+		d.colWriter = newMulticollectionWriter(d.config.APIKey, d.config.Host, template)
+
+	} else if d.config.Namespace == "" {
+		d.colWriter = newMulticollectionWriter(d.config.APIKey, d.config.Host, nil)
+	} else {
+
+		index, err := newIndex(ctx, newIndexParams{
+			apiKey:    d.config.APIKey,
+			host:      d.config.Host,
+			namespace: d.config.Namespace,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating a new writer: %w", err)
+		}
+
+		d.colWriter = &singleCollectionWriter{index: index}
 	}
 
 	sdk.Logger(ctx).Info().Msg("created pinecone destination")
@@ -108,9 +104,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
-	sdk.Logger(ctx).Info().Msg("Tearing down Pinecone Destination...")
-
-	if err := d.index.Close(); err != nil {
+	if err := d.colWriter.close(); err != nil {
 		return fmt.Errorf("failed to close index: %w", err)
 	}
 	return nil
@@ -122,6 +116,10 @@ type newIndexParams struct {
 	namespace string
 }
 
+// newIndex creates a new connection to a given namespace. We don't pass the
+// destination configuration because in multicollection mode the namespace is
+// dynamic, and we assume that the DestinationConfig should be an immutable
+// struct.
 func newIndex(ctx context.Context, params newIndexParams) (*pinecone.IndexConnection, error) {
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
 		ApiKey: params.apiKey,
@@ -206,6 +204,6 @@ func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
 	return vec, nil
 }
 
-func isTextTemplate(s string) bool {
+func isGoTextTemplate(s string) bool {
 	return strings.Contains(s, "{{") && strings.Contains(s, "}}")
 }
