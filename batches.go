@@ -196,7 +196,9 @@ func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.
 			return nil, fmt.Errorf("failed to parse namespace: %w", err)
 		}
 
-		// Note: we could paralelize the index creation, but is it worth it?
+		// Note: we could parallelize the index creation, but for the few
+		// different namespaces that the connector is going to receive it should
+		// not be that problematic. See in the future if it's worth it.
 		if err := w.addIndexIfMissing(ctx, namespace); err != nil {
 			return nil, fmt.Errorf("failed to add missing index: %w", err)
 		}
