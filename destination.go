@@ -116,8 +116,10 @@ func (d *Destination) Teardown(_ context.Context) error {
 }
 
 type newIndexParams struct {
-	apiKey    string
-	host      string
+	apiKey string
+	host   string
+
+	// namespace, if empty, will make the index point to the default namespace
 	namespace string
 }
 
