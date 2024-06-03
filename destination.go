@@ -71,16 +71,16 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) (err
 }
 
 func (d *Destination) Open(ctx context.Context) (err error) {
-	if isGoTextTemplate(d.config.Namespace) {
+	switch {
+	case isGoTextTemplate(d.config.Namespace):
 		template, err := template.New("collection").Parse(d.config.Namespace)
 		if err != nil {
 			return fmt.Errorf("failed to parse namespace template %s: %w", d.config.Namespace, err)
 		}
 		d.colWriter = newMulticollectionWriter(d.config.APIKey, d.config.Host, template)
-
-	} else if d.config.Namespace == "" {
+	case d.config.Namespace == "":
 		d.colWriter = newMulticollectionWriter(d.config.APIKey, d.config.Host, nil)
-	} else {
+	default:
 
 		index, err := newIndex(ctx, newIndexParams{
 			apiKey:    d.config.APIKey,
@@ -100,10 +100,15 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	return d.colWriter.writeRecords(ctx, records)
+	written, err := d.colWriter.writeRecords(ctx, records)
+	if err != nil {
+		return written, fmt.Errorf("destination failed to write %v records: %w", written, err)
+	}
+
+	return written, nil
 }
 
-func (d *Destination) Teardown(ctx context.Context) error {
+func (d *Destination) Teardown(_ context.Context) error {
 	if err := d.colWriter.close(); err != nil {
 		return fmt.Errorf("failed to close index: %w", err)
 	}

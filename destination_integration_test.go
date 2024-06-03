@@ -35,9 +35,8 @@ const maxRetries = 4
 
 func destConfigFromEnv(t *testing.T) DestinationConfig {
 	return DestinationConfig{
-		APIKey:    requiredEnv(t, "API_KEY"),
-		Host:      requiredEnv(t, "HOST_URL"),
-		Namespace: "test-namespace",
+		APIKey: requiredEnv(t, "API_KEY"),
+		Host:   requiredEnv(t, "HOST_URL"),
 	}
 }
 

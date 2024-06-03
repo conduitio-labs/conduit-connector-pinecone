@@ -15,7 +15,6 @@
 package pinecone
 
 import (
-	"context"
 	"math/rand"
 	"testing"
 
@@ -51,13 +50,12 @@ func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 }
 
 func TestSingleCollectionWriter(t *testing.T) {
-	ctx := context.Background()
 	colWriter := singleCollectionWriter{}
 
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
-		batches, err := colWriter.buildBatches(ctx, records)
+		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 0)
@@ -66,7 +64,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 	t.Run("only delete", func(t *testing.T) {
 		is := is.New(t)
 		records := testRecords(sdk.OperationDelete)
-		batches, err := colWriter.buildBatches(ctx, records)
+		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -76,7 +74,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 	t.Run("only non delete", func(t *testing.T) {
 		is := is.New(t)
 		records := testRecords(sdk.OperationCreate)
-		batches, err := colWriter.buildBatches(ctx, records)
+		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -101,7 +99,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 		batch4 := testRecords(sdk.OperationSnapshot)
 		records = append(records, batch4...)
 
-		batches, err := colWriter.buildBatches(ctx, records)
+		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 5)

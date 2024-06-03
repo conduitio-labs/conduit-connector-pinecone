@@ -50,8 +50,9 @@ func (b *upsertBatch) isCompatible(rec sdk.Record) bool {
 	switch rec.Operation {
 	case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
 		return true
+	case sdk.OperationDelete:
+		return false
 	}
-
 	return false
 }
 
@@ -122,8 +123,6 @@ func newMulticollectionWriter(apiKey, host string, template *template.Template) 
 	}
 }
 
-const defaultNamespace = "(default)"
-
 func (w *multicollectionWriter) parseNamespace(record sdk.Record) (string, error) {
 	if w.namespaceTemplate != nil {
 		var sb strings.Builder
@@ -134,21 +133,13 @@ func (w *multicollectionWriter) parseNamespace(record sdk.Record) (string, error
 		return sb.String(), nil
 	}
 
-	namespace, err := record.Metadata.GetCollection()
-	if err != nil {
-		return defaultNamespace, nil
-	}
-
+	namespace, _ := record.Metadata.GetCollection()
 	return namespace, nil
 }
 
 func (w *multicollectionWriter) addIndexIfMissing(ctx context.Context, namespace string) error {
 	if w.indexes.Has(namespace) {
 		return nil
-	}
-
-	if namespace == defaultNamespace {
-		namespace = ""
 	}
 
 	index, err := newIndex(ctx, newIndexParams{
@@ -179,7 +170,7 @@ func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.
 		}
 
 		if err := batch.addRecord(rec); err != nil {
-			return err
+			return fmt.Errorf("failed to add record: %w", err)
 		}
 
 		batches = append(batches, batch)
@@ -265,7 +256,7 @@ type singleCollectionWriter struct {
 	index *pinecone.IndexConnection
 }
 
-func (w *singleCollectionWriter) buildBatches(ctx context.Context, records []sdk.Record) ([]recordBatch, error) {
+func (w *singleCollectionWriter) buildBatches(records []sdk.Record) ([]recordBatch, error) {
 	var batches []recordBatch
 
 	addNewBatch := func(rec sdk.Record) error {
@@ -278,7 +269,7 @@ func (w *singleCollectionWriter) buildBatches(ctx context.Context, records []sdk
 		}
 
 		if err := batch.addRecord(rec); err != nil {
-			return err
+			return fmt.Errorf("failed to add record: %w", err)
 		}
 
 		batches = append(batches, batch)
@@ -310,7 +301,7 @@ func (w *singleCollectionWriter) buildBatches(ctx context.Context, records []sdk
 }
 
 func (w *singleCollectionWriter) writeRecords(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := w.buildBatches(ctx, records)
+	batches, err := w.buildBatches(records)
 	if err != nil {
 		return 0, err
 	}
@@ -328,5 +319,8 @@ func (w *singleCollectionWriter) writeRecords(ctx context.Context, records []sdk
 }
 
 func (w *singleCollectionWriter) close() error {
-	return w.index.Close()
+	if err := w.index.Close(); err != nil {
+		return fmt.Errorf("failed to close index: %w", err)
+	}
+	return nil
 }
