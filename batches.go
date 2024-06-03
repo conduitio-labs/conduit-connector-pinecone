@@ -27,48 +27,7 @@ import (
 // switches from upsert to delete or vice versa.
 // Records are batched this way so that we preserve conduit's requirement of writing
 // records sequentially.
-func (d *Destination) buildBatches(records []sdk.Record) ([]recordBatch, error) {
-	var batches []recordBatch
-
-	var currUpsertBatch upsertBatch
-	var currDeleteBatch deleteBatch
-
-	for i, rec := range records {
-		isLast := i == len(records)-1
-		switch rec.Operation {
-		case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
-			vec, err := parsePineconeVector(rec)
-			if err != nil {
-				return nil, err
-			}
-
-			currUpsertBatch.vectors = append(currUpsertBatch.vectors, vec)
-
-			if isLast {
-				batches = append(batches, currUpsertBatch)
-			}
-			if len(currDeleteBatch.ids) != 0 {
-				batches = append(batches, currDeleteBatch)
-				currDeleteBatch = deleteBatch{}
-			}
-		case sdk.OperationDelete:
-			id := vectorID(rec.Key)
-			currDeleteBatch.ids = append(currDeleteBatch.ids, id)
-
-			if isLast {
-				batches = append(batches, currDeleteBatch)
-			}
-			if len(currUpsertBatch.vectors) != 0 {
-				batches = append(batches, currUpsertBatch)
-				currUpsertBatch = upsertBatch{}
-			}
-		}
-	}
-
-	return batches, nil
-}
-
-func buildBatches2(records []sdk.Record) ([]recordBatch, error) {
+func buildBatches(records []sdk.Record, multicollection bool) ([]recordBatch, error) {
 	var batches []recordBatch
 
 	addNewBatch := func(rec sdk.Record, namespace string) error {
@@ -90,29 +49,31 @@ func buildBatches2(records []sdk.Record) ([]recordBatch, error) {
 
 	addToPreviousBatch := func(rec sdk.Record, namespace string) error {
 		prevBatch := batches[len(batches)-1]
-		if prevBatch.isCompatible(rec) {
-			if err := prevBatch.addRecord(rec); err != nil {
-				return err
-			}
-		} else {
-			if err := addNewBatch(rec, namespace); err != nil {
-				return err
+
+		if multicollection {
+			if prevBatch.getNamespace() != namespace {
+				return addNewBatch(rec, namespace)
 			}
 		}
 
-		return nil
+		if prevBatch.isCompatible(rec) {
+			return prevBatch.addRecord(rec)
+		}
+		return addNewBatch(rec, namespace)
 	}
 
 	for _, rec := range records {
 		namespace, err := rec.Metadata.GetCollection()
 		if err != nil {
-			// namespace is default
 		}
 
 		if len(batches) == 0 {
-			addNewBatch(rec, namespace)
+			err = addNewBatch(rec, namespace)
 		} else {
-			addToPreviousBatch(rec, namespace)
+			err = addToPreviousBatch(rec, namespace)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -120,6 +81,7 @@ func buildBatches2(records []sdk.Record) ([]recordBatch, error) {
 }
 
 type recordBatch interface {
+	getNamespace() string
 	isCompatible(sdk.Record) bool
 	addRecord(sdk.Record) error
 	writeBatch(context.Context, *pinecone.IndexConnection) (int, error)
@@ -128,6 +90,10 @@ type recordBatch interface {
 type upsertBatch struct {
 	namespace string
 	vectors   []*pinecone.Vector
+}
+
+func (b *upsertBatch) getNamespace() string {
+	return b.namespace
 }
 
 func (b *upsertBatch) isCompatible(rec sdk.Record) bool {
@@ -140,6 +106,13 @@ func (b *upsertBatch) isCompatible(rec sdk.Record) bool {
 }
 
 func (b *upsertBatch) addRecord(rec sdk.Record) error {
+	vec, err := parsePineconeVector(rec)
+	if err != nil {
+		return err
+	}
+
+	b.vectors = append(b.vectors, vec)
+	return nil
 }
 
 func (b *upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
@@ -155,12 +128,18 @@ type deleteBatch struct {
 	ids       []string
 }
 
+func (b *deleteBatch) getNamespace() string {
+	return b.namespace
+}
+
 func (b *deleteBatch) isCompatible(rec sdk.Record) bool {
 	return rec.Operation == sdk.OperationDelete
 }
 
 func (b *deleteBatch) addRecord(rec sdk.Record) error {
-
+	id := vectorID(rec.Key)
+	b.ids = append(b.ids, id)
+	return nil
 }
 
 func (b *deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {

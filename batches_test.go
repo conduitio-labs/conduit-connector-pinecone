@@ -24,7 +24,7 @@ import (
 )
 
 func assertUpsertBatch(is *is.I, batch recordBatch, records []sdk.Record) {
-	upsertBatch, ok := batch.(upsertBatch)
+	upsertBatch, ok := batch.(*upsertBatch)
 	is.True(ok) // batch isn't upsertBatch
 
 	for i, vec := range upsertBatch.vectors {
@@ -38,7 +38,7 @@ func assertUpsertBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 }
 
 func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
-	deleteBatch, ok := batch.(deleteBatch)
+	deleteBatch, ok := batch.(*deleteBatch)
 	is.True(ok) // batch isn't deleteBatch
 
 	keys := make([]string, len(records))
@@ -50,13 +50,10 @@ func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 }
 
 func TestBuildBatchesWithoutCollection(t *testing.T) {
-
-	dest := Destination{}
-
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
-		batches, err := dest.buildBatches(records)
+		batches, err := buildBatches(records, false)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 0)
@@ -65,7 +62,7 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 	t.Run("only delete", func(t *testing.T) {
 		is := is.New(t)
 		records := testRecords(sdk.OperationDelete)
-		batches, err := dest.buildBatches(records)
+		batches, err := buildBatches(records, false)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -75,7 +72,7 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 	t.Run("only non delete", func(t *testing.T) {
 		is := is.New(t)
 		records := testRecords(sdk.OperationCreate)
-		batches, err := dest.buildBatches(records)
+		batches, err := buildBatches(records, false)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -100,7 +97,7 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 		batch4 := testRecords(sdk.OperationSnapshot)
 		records = append(records, batch4...)
 
-		batches, err := dest.buildBatches(records)
+		batches, err := buildBatches(records, false)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 5)
@@ -114,36 +111,27 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 }
 
 func TestBuildBatchesWithCollection(t *testing.T) {
-	dest := Destination{
-		config: DestinationConfig{
-			APIKey:    "xxxx",
-			Host:      "",
-			Namespace: "",
-		},
-	}
-
 	t.Run("some records without destination", func(t *testing.T) {
 		is := is.New(t)
 
 		var records []sdk.Record
 
-		batch0 := testRecordsDestination(sdk.OperationUpdate, &batchCollection{
-			indexHost: "https://host1.com",
-			namespace: "", // default namespace
-		})
+		batch0 := testRecordsDestination(sdk.OperationUpdate, "")
 		records = append(records, batch0...)
 
 		batch1 := testRecords(sdk.OperationDelete)
 		records = append(records, batch1...)
 
-		batch2 := testRecordsDestination(sdk.OperationDelete, &batchCollection{
-			indexHost: "https://host3.com",
-			namespace: "namespace2",
-		})
+		batch2 := testRecordsDestination(sdk.OperationDelete, "namespace2")
 		records = append(records, batch2...)
 
-		_, err := buildBatches(records)
-		is.Equal(err, errCollectionFieldNotFound)
+		batches, err := buildBatches(records, true)
+		is.NoErr(err)
+
+		assertUpsertBatch(is, batches[0], batch0)
+		assertDeleteBatch(is, batches[1], batch1)
+		assertDeleteBatch(is, batches[2], batch2)
+
 	})
 
 	t.Run("different destinations", func(t *testing.T) {
@@ -151,25 +139,16 @@ func TestBuildBatchesWithCollection(t *testing.T) {
 
 		var records []sdk.Record
 
-		batch0 := testRecordsDestination(sdk.OperationUpdate, &batchCollection{
-			indexHost: "https://host1.com",
-			namespace: "", // default namespace
-		})
+		batch0 := testRecordsDestination(sdk.OperationUpdate, "")
 		records = append(records, batch0...)
 
-		batch1 := testRecordsDestination(sdk.OperationDelete, &batchCollection{
-			indexHost: "https://host2.com",
-			namespace: "namespace2",
-		})
+		batch1 := testRecordsDestination(sdk.OperationDelete, "namespace2")
 		records = append(records, batch1...)
 
-		batch2 := testRecordsDestination(sdk.OperationDelete, &batchCollection{
-			indexHost: "https://host3.com",
-			namespace: "namespace2",
-		})
+		batch2 := testRecordsDestination(sdk.OperationDelete, "namespace2")
 		records = append(records, batch2...)
 
-		batches, err := buildBatches(records)
+		batches, err := buildBatches(records, true)
 		is.NoErr(err)
 
 		assertUpsertBatch(is, batches[0], batch0)
@@ -178,7 +157,7 @@ func TestBuildBatchesWithCollection(t *testing.T) {
 	})
 }
 
-func testRecordsDestination(op sdk.Operation, maybeDest *batchCollection) []sdk.Record {
+func testRecordsDestination(op sdk.Operation, namespace string) []sdk.Record {
 	total := rand.Intn(10) + 1
 	recs := make([]sdk.Record, total)
 
@@ -189,8 +168,8 @@ func testRecordsDestination(op sdk.Operation, maybeDest *batchCollection) []sdk.
 			randString(): randString(),
 			randString(): randString(),
 		}
-		if maybeDest != nil {
-			metadata.SetCollection(maybeDest.String())
+		if namespace != "" {
+			metadata.SetCollection(namespace)
 		}
 
 		var payload sdk.Data = sdk.StructuredData{
@@ -212,7 +191,7 @@ func testRecordsDestination(op sdk.Operation, maybeDest *batchCollection) []sdk.
 }
 
 func testRecords(op sdk.Operation) []sdk.Record {
-	return testRecordsDestination(op, nil)
+	return testRecordsDestination(op, "")
 }
 
 func randString() string { return uuid.NewString()[0:8] }
