@@ -34,6 +34,10 @@ type Destination struct {
 
 	config DestinationConfig
 
+	isMultitemplate bool
+
+	colWriter collectionWriter
+
 	multiCollectionTempl *template.Template
 
 	index *pinecone.IndexConnection
@@ -75,6 +79,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) (err
 		if err != nil {
 			return fmt.Errorf("failed to parse namespace template %s: %w", d.config.Namespace, err)
 		}
+
 	} else if d.config.Namespace == "" {
 		d.isMultitemplate = true
 		// parse namespace from opencdc.collection
@@ -99,21 +104,7 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := buildBatches(records, d.isMultitemplate)
-	if err != nil {
-		return 0, err
-	}
-
-	var written int
-	for _, batch := range batches {
-		batchWrittenRecs, err := batch.writeBatch(ctx, d.index)
-		written += batchWrittenRecs
-		if err != nil {
-			return written, fmt.Errorf("failed to write record batch: %w", err)
-		}
-	}
-
-	return written, nil
+	return d.colWriter.writeRecords(ctx, records)
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {

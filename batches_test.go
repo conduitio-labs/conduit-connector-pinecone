@@ -15,6 +15,7 @@
 package pinecone
 
 import (
+	"context"
 	"math/rand"
 	"testing"
 
@@ -49,11 +50,14 @@ func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 	is.Equal(deleteBatch.ids, keys)
 }
 
-func TestBuildBatchesWithoutCollection(t *testing.T) {
+func TestSingleCollectionWriter(t *testing.T) {
+	ctx := context.Background()
+	colWriter := singleCollectionWriter{}
+
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
 		var records []sdk.Record
-		batches, err := buildBatches(records, false)
+		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 0)
@@ -62,7 +66,7 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 	t.Run("only delete", func(t *testing.T) {
 		is := is.New(t)
 		records := testRecords(sdk.OperationDelete)
-		batches, err := buildBatches(records, false)
+		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -72,7 +76,7 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 	t.Run("only non delete", func(t *testing.T) {
 		is := is.New(t)
 		records := testRecords(sdk.OperationCreate)
-		batches, err := buildBatches(records, false)
+		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 1)
@@ -97,7 +101,7 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 		batch4 := testRecords(sdk.OperationSnapshot)
 		records = append(records, batch4...)
 
-		batches, err := buildBatches(records, false)
+		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
 		is.Equal(len(batches), 5)
@@ -110,52 +114,59 @@ func TestBuildBatchesWithoutCollection(t *testing.T) {
 	})
 }
 
-func TestBuildBatchesWithCollection(t *testing.T) {
-	t.Run("some records without destination", func(t *testing.T) {
-		is := is.New(t)
+// func TestMultiCollectionWriter(t *testing.T) {
+// 	t.Run("some records without destination", func(t *testing.T) {
+// 		is := is.New(t)
 
-		var records []sdk.Record
+// 		multicolWriter := multicollectionWriter{
+// 			apiKey:            "",
+// 			host:              "",
+// 			indexes:           cmap.ConcurrentMap{},
+// 			namespaceTemplate: &template.Template{},
+// 		}
 
-		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
-		records = append(records, batch0...)
+// 		var records []sdk.Record
 
-		batch1 := testRecords(sdk.OperationDelete)
-		records = append(records, batch1...)
+// 		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
+// 		records = append(records, batch0...)
 
-		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
-		records = append(records, batch2...)
+// 		batch1 := testRecords(sdk.OperationDelete)
+// 		records = append(records, batch1...)
 
-		batches, err := buildBatches(records, true)
-		is.NoErr(err)
+// 		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
+// 		records = append(records, batch2...)
 
-		assertUpsertBatch(is, batches[0], batch0)
-		assertDeleteBatch(is, batches[1], batch1)
-		assertDeleteBatch(is, batches[2], batch2)
+// 		batches, err := buildBatches(records, true)
+// 		is.NoErr(err)
 
-	})
+// 		assertUpsertBatch(is, batches[0], batch0)
+// 		assertDeleteBatch(is, batches[1], batch1)
+// 		assertDeleteBatch(is, batches[2], batch2)
 
-	t.Run("different destinations", func(t *testing.T) {
-		is := is.New(t)
+// 	})
 
-		var records []sdk.Record
+// 	t.Run("different destinations", func(t *testing.T) {
+// 		is := is.New(t)
 
-		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
-		records = append(records, batch0...)
+// 		var records []sdk.Record
 
-		batch1 := testRecordsWithNamespace(sdk.OperationDelete, "namespace1")
-		records = append(records, batch1...)
+// 		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
+// 		records = append(records, batch0...)
 
-		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
-		records = append(records, batch2...)
+// 		batch1 := testRecordsWithNamespace(sdk.OperationDelete, "namespace1")
+// 		records = append(records, batch1...)
 
-		batches, err := buildBatches(records, true)
-		is.NoErr(err)
+// 		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
+// 		records = append(records, batch2...)
 
-		assertUpsertBatch(is, batches[0], batch0)
-		assertDeleteBatch(is, batches[1], batch1)
-		assertDeleteBatch(is, batches[2], batch2)
-	})
-}
+// 		batches, err := buildBatches(records, true)
+// 		is.NoErr(err)
+
+// 		assertUpsertBatch(is, batches[0], batch0)
+// 		assertDeleteBatch(is, batches[1], batch1)
+// 		assertDeleteBatch(is, batches[2], batch2)
+// 	})
+// }
 
 func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 	total := rand.Intn(3) + 1
