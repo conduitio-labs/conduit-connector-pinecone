@@ -116,13 +116,13 @@ func TestBuildBatchesWithCollection(t *testing.T) {
 
 		var records []sdk.Record
 
-		batch0 := testRecordsDestination(sdk.OperationUpdate, "")
+		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
 		records = append(records, batch0...)
 
 		batch1 := testRecords(sdk.OperationDelete)
 		records = append(records, batch1...)
 
-		batch2 := testRecordsDestination(sdk.OperationDelete, "namespace2")
+		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
 		records = append(records, batch2...)
 
 		batches, err := buildBatches(records, true)
@@ -139,13 +139,13 @@ func TestBuildBatchesWithCollection(t *testing.T) {
 
 		var records []sdk.Record
 
-		batch0 := testRecordsDestination(sdk.OperationUpdate, "")
+		batch0 := testRecordsWithNamespace(sdk.OperationUpdate, "")
 		records = append(records, batch0...)
 
-		batch1 := testRecordsDestination(sdk.OperationDelete, "namespace2")
+		batch1 := testRecordsWithNamespace(sdk.OperationDelete, "namespace1")
 		records = append(records, batch1...)
 
-		batch2 := testRecordsDestination(sdk.OperationDelete, "namespace2")
+		batch2 := testRecordsWithNamespace(sdk.OperationDelete, "namespace2")
 		records = append(records, batch2...)
 
 		batches, err := buildBatches(records, true)
@@ -157,8 +157,8 @@ func TestBuildBatchesWithCollection(t *testing.T) {
 	})
 }
 
-func testRecordsDestination(op sdk.Operation, namespace string) []sdk.Record {
-	total := rand.Intn(10) + 1
+func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
+	total := rand.Intn(3) + 1
 	recs := make([]sdk.Record, total)
 
 	for i := range total {
@@ -191,7 +191,7 @@ func testRecordsDestination(op sdk.Operation, namespace string) []sdk.Record {
 }
 
 func testRecords(op sdk.Operation) []sdk.Record {
-	return testRecordsDestination(op, "")
+	return testRecordsWithNamespace(op, "")
 }
 
 func randString() string { return uuid.NewString()[0:8] }

@@ -69,11 +69,15 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) (err
 	}
 	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
 
-	if isTextTemplate(d.config.Host) {
-		d.multiCollectionTempl, err = template.New("collection").Parse(d.config.Host)
+	if isTextTemplate(d.config.Namespace) {
+		d.isMultitemplate = true
+		d.multiCollectionTempl, err = template.New("collection").Parse(d.config.Namespace)
 		if err != nil {
-			return fmt.Errorf("failed to parse host template %s: %w", d.config.Host, err)
+			return fmt.Errorf("failed to parse namespace template %s: %w", d.config.Namespace, err)
 		}
+	} else if d.config.Namespace == "" {
+		d.isMultitemplate = true
+		// parse namespace from opencdc.collection
 	}
 
 	return nil
@@ -95,7 +99,7 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := buildBatches(records, true)
+	batches, err := buildBatches(records, d.isMultitemplate)
 	if err != nil {
 		return 0, err
 	}
