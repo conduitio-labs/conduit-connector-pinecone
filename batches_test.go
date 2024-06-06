@@ -181,16 +181,6 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 		is.Equal(len(batches), 0)
 	})
 
-	t.Run("empty", func(t *testing.T) {
-		ctx, is, colWriter := setupMulticollection(t)
-
-		var records []sdk.Record
-		batches, err := colWriter.buildBatches(ctx, records)
-		is.NoErr(err)
-
-		is.Equal(len(batches), 0)
-	})
-
 	t.Run("only delete", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
