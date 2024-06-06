@@ -164,16 +164,12 @@ func vectorID(key sdk.Data) string {
 	return string(key.Bytes())
 }
 
+// sparseValues is a struct that represents a sparse vector in Pinecone. We
+// duplicate it from *pinecone.SparseValues so we have more control over the
+// JSON field names.
 type sparseValues struct {
 	Indices []uint32  `json:"indices"`
 	Values  []float32 `json:"values"`
-}
-
-func (s sparseValues) PineconeSparseValues() *pinecone.SparseValues {
-	return &pinecone.SparseValues{
-		Indices: s.Indices,
-		Values:  s.Values,
-	}
 }
 
 type pineconeVectorValues struct {
@@ -202,10 +198,13 @@ func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
 
 	vec := &pinecone.Vector{
 		//revive:disable-next-line
-		Id:           id,
-		Values:       vectorValues.Values,
-		SparseValues: vectorValues.SparseValues.PineconeSparseValues(),
-		Metadata:     metadata,
+		Id:     id,
+		Values: vectorValues.Values,
+		SparseValues: &pinecone.SparseValues{
+			Indices: vectorValues.SparseValues.Indices,
+			Values:  vectorValues.SparseValues.Values,
+		},
+		Metadata: metadata,
 	}
 
 	return vec, nil
