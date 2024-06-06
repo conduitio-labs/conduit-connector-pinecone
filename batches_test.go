@@ -154,7 +154,6 @@ func TestParseNamespace(t *testing.T) {
 }
 
 func TestMulticollectionWriter_buildBatches(t *testing.T) {
-
 	t.Run("connects to multiple namespaces when building batches", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
@@ -294,7 +293,12 @@ func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 				Values:  []float32{0.5, 0.3},
 			},
 		}
-		bs, _ := json.Marshal(vecValues)
+		bs, err := json.Marshal(vecValues)
+		if err != nil {
+			// should never happen
+			panic(err)
+		}
+
 		payload := sdk.RawData(bs)
 
 		rec := sdk.Record{
