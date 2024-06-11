@@ -81,7 +81,6 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 	case d.config.Namespace == "":
 		d.colWriter = newMulticollectionWriter(d.config.APIKey, d.config.Host, nil)
 	default:
-
 		index, err := newIndex(ctx, newIndexParams{
 			apiKey:    d.config.APIKey,
 			host:      d.config.Host,

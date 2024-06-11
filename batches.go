@@ -29,9 +29,9 @@ import (
 type recordBatch interface {
 	getNamespace() string
 
-	// isCompatible examines the given record and returns whether the
+	// isOperationCompatible examines the given record and returns whether the
 	// record can be added to the batch or not.
-	isCompatible(sdk.Record) bool
+	isOperationCompatible(sdk.Record) bool
 
 	addRecord(sdk.Record) error
 	writeBatch(context.Context, *pinecone.IndexConnection) (int, error)
@@ -46,7 +46,7 @@ func (b *upsertBatch) getNamespace() string {
 	return b.namespace
 }
 
-func (b *upsertBatch) isCompatible(rec sdk.Record) bool {
+func (b *upsertBatch) isOperationCompatible(rec sdk.Record) bool {
 	switch rec.Operation {
 	case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
 		return true
@@ -83,7 +83,7 @@ func (b *deleteBatch) getNamespace() string {
 	return b.namespace
 }
 
-func (b *deleteBatch) isCompatible(rec sdk.Record) bool {
+func (b *deleteBatch) isOperationCompatible(rec sdk.Record) bool {
 	return rec.Operation == sdk.OperationDelete
 }
 
@@ -184,7 +184,7 @@ func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.
 			return addNewBatch(rec, namespace)
 		}
 
-		if prevBatch.isCompatible(rec) {
+		if prevBatch.isOperationCompatible(rec) {
 			return prevBatch.addRecord(rec)
 		}
 		return addNewBatch(rec, namespace)
@@ -281,7 +281,7 @@ func (w *singleCollectionWriter) buildBatches(records []sdk.Record) ([]recordBat
 	addToPreviousBatch := func(rec sdk.Record) error {
 		prevBatch := batches[len(batches)-1]
 
-		if prevBatch.isCompatible(rec) {
+		if prevBatch.isOperationCompatible(rec) {
 			return prevBatch.addRecord(rec)
 		}
 		return addNewBatch(rec)
