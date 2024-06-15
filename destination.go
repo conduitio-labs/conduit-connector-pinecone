@@ -120,10 +120,11 @@ type newIndexParams struct {
 	namespace string
 }
 
-// newIndex creates a new connection to a given namespace. We don't pass the
-// destination configuration because in multicollection mode the namespace is
-// dynamic, and we assume that the DestinationConfig should be an immutable
-// struct.
+// newIndex creates a new connection to a given namespace. If the namespace is
+// empty the index will connect to the default pinecone namespace.
+// We don't pass the destination configuration because in multicollection mode
+// the namespace is dynamic, and we assume that the DestinationConfig should be
+// an immutable struct.
 func newIndex(ctx context.Context, params newIndexParams) (*pinecone.IndexConnection, error) {
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
 		ApiKey: params.apiKey,
