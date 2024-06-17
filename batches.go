@@ -67,7 +67,7 @@ func (b *upsertBatch) addRecord(rec sdk.Record) error {
 }
 
 func (b *upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
-	written, err := index.UpsertVectors(&ctx, b.vectors)
+	written, err := index.UpsertVectors(ctx, b.vectors)
 	if err != nil {
 		return 0, fmt.Errorf("failed to upsert vectors: %w", err)
 	}
@@ -94,7 +94,7 @@ func (b *deleteBatch) addRecord(rec sdk.Record) error {
 }
 
 func (b *deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
-	err := index.DeleteVectorsById(&ctx, b.ids)
+	err := index.DeleteVectorsById(ctx, b.ids)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete vectors: %w", err)
 	}

@@ -325,7 +325,7 @@ func assertUpsertRecordsWrittenInNamespace(
 		ids = append(ids, string(rec.Key.Bytes()))
 	}
 
-	res, err := index.FetchVectors(&ctx, ids)
+	res, err := index.FetchVectors(ctx, ids)
 	is.NoErr(err)
 
 	for id, vec := range res.Vectors {
