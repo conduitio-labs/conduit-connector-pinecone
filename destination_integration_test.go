@@ -178,7 +178,7 @@ func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index
 	// configuration that I've tested, pinecone writes occurred slightly after the RPC call
 	// returned data. Therefore, the following retry logic is needed to make tests more robust
 	for i := 1; i <= maxRetries; i++ {
-		res, err := index.FetchVectors(&ctx, []string{id})
+		res, err := index.FetchVectors(ctx, []string{id})
 		is.NoErr(err)
 
 		vec, ok := res.Vectors[id]
@@ -203,7 +203,7 @@ func assertWrittenRecordIndex(ctx context.Context, t *testing.T, is *is.I, index
 func assertDeletedRecordIndex(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, id string) {
 	// same as assertWrittenRecordIndex, we need the retry for robustness
 	for i := 0; i <= maxRetries; i++ {
-		res, err := index.FetchVectors(&ctx, []string{id})
+		res, err := index.FetchVectors(ctx, []string{id})
 		is.NoErr(err)
 
 		_, ok := res.Vectors[id]
@@ -224,7 +224,7 @@ func assertDeletedRecordIndex(ctx context.Context, t *testing.T, is *is.I, index
 func assertNamespaceExists(ctx context.Context, t *testing.T, is *is.I, index *pinecone.IndexConnection, namespace string) {
 	// same as assertWrittenRecordIndex, we need the retry for robustness
 	for i := 0; i <= maxRetries; i++ {
-		stats, err := index.DescribeIndexStats(&ctx)
+		stats, err := index.DescribeIndexStats(ctx)
 		is.NoErr(err)
 
 		_, namespaceExists := stats.Namespaces[namespace]
@@ -245,7 +245,7 @@ func assertNamespaceExists(ctx context.Context, t *testing.T, is *is.I, index *p
 
 func deleteAllRecords(is *is.I, index *pinecone.IndexConnection) {
 	ctx := context.Background()
-	err := index.DeleteAllVectorsInNamespace(&ctx)
+	err := index.DeleteAllVectorsInNamespace(ctx)
 	is.NoErr(err)
 }
 
