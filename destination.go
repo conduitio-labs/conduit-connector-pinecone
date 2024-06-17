@@ -45,7 +45,8 @@ type DestinationConfig struct {
 	Host string `json:"host" validate:"required"`
 
 	// Namespace is the Pinecone's index namespace. Defaults to the empty
-	// namespace.
+	// namespace. It can contain a [Go template](https://pkg.go.dev/text/template)
+	// that will be executed for each record to determine the namespace.
 	Namespace string `json:"namespace"`
 }
 
@@ -81,7 +82,6 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 	case d.config.Namespace == "":
 		d.colWriter = newMulticollectionWriter(d.config.APIKey, d.config.Host, nil)
 	default:
-
 		index, err := newIndex(ctx, newIndexParams{
 			apiKey:    d.config.APIKey,
 			host:      d.config.Host,
@@ -116,17 +116,16 @@ func (d *Destination) Teardown(_ context.Context) error {
 }
 
 type newIndexParams struct {
-	apiKey string
-	host   string
-
-	// namespace, if empty, will make the index point to the default namespace
+	apiKey    string
+	host      string
 	namespace string
 }
 
-// newIndex creates a new connection to a given namespace. We don't pass the
-// destination configuration because in multicollection mode the namespace is
-// dynamic, and we assume that the DestinationConfig should be an immutable
-// struct.
+// newIndex creates a new connection to a given namespace. If the namespace is
+// empty the index will connect to the default pinecone namespace.
+// We don't pass the destination configuration because in multicollection mode
+// the namespace is dynamic, and we assume that the DestinationConfig should be
+// an immutable struct.
 func newIndex(ctx context.Context, params newIndexParams) (*pinecone.IndexConnection, error) {
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
 		ApiKey: params.apiKey,
