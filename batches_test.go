@@ -15,12 +15,16 @@
 package pinecone
 
 import (
+	"context"
+	"encoding/json"
 	"math/rand"
 	"testing"
+	"text/template"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
 	"github.com/matryer/is"
+	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
 func assertUpsertBatch(is *is.I, batch recordBatch, records []sdk.Record) {
@@ -112,6 +116,151 @@ func TestSingleCollectionWriter(t *testing.T) {
 	})
 }
 
+func setupMulticollection(t *testing.T) (context.Context, *is.I, *multicollectionWriter) {
+	cfg := destConfigFromEnv(t)
+
+	colWriter := newMulticollectionWriter(cfg.APIKey, cfg.Host, nil)
+	ctx := context.Background()
+	is := is.New(t)
+
+	return ctx, is, colWriter
+}
+
+func TestParseNamespace(t *testing.T) {
+	t.Run("from template", func(t *testing.T) {
+		_, is, colWriter := setupMulticollection(t)
+
+		colWriter.namespaceTemplate = template.Must(template.
+			New("test").
+			Parse(`{{ printf "%s" .Key }}`))
+
+		namespace, err := colWriter.parseNamespace(sdk.Record{
+			Key: sdk.RawData("testtemplate"),
+		})
+		is.NoErr(err)
+
+		is.Equal(namespace, "testtemplate")
+	})
+	t.Run("from opencdc.collection", func(t *testing.T) {
+		_, is, colWriter := setupMulticollection(t)
+
+		namespace, err := colWriter.parseNamespace(sdk.Record{
+			Metadata: sdk.Metadata{"opencdc.collection": "testtemplate"},
+		})
+		is.NoErr(err)
+
+		is.Equal(namespace, "testtemplate")
+	})
+}
+
+func TestMulticollectionWriter_buildBatches(t *testing.T) {
+	t.Run("connects to multiple namespaces when building batches", func(t *testing.T) {
+		ctx, is, colWriter := setupMulticollection(t)
+
+		var recs []sdk.Record
+		recs1 := testRecordsWithNamespace(sdk.OperationCreate, "namespace1")
+		recs = append(recs, recs1...)
+		recs2 := testRecordsWithNamespace(sdk.OperationCreate, "namespace2")
+		recs = append(recs, recs2...)
+		recs3 := testRecordsWithNamespace(sdk.OperationCreate, "namespace3")
+		recs = append(recs, recs3...)
+
+		_, err := colWriter.buildBatches(ctx, recs)
+		is.NoErr(err)
+
+		is.Equal(colWriter.indexes.Count(), 3)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		ctx, is, colWriter := setupMulticollection(t)
+
+		var records []sdk.Record
+		batches, err := colWriter.buildBatches(ctx, records)
+		is.NoErr(err)
+
+		is.Equal(len(batches), 0)
+	})
+
+	t.Run("only delete", func(t *testing.T) {
+		ctx, is, colWriter := setupMulticollection(t)
+
+		records := testRecords(sdk.OperationDelete)
+		batches, err := colWriter.buildBatches(ctx, records)
+		is.NoErr(err)
+
+		is.Equal(len(batches), 1)
+		assertDeleteBatch(is, batches[0], records)
+	})
+
+	t.Run("only non delete", func(t *testing.T) {
+		ctx, is, colWriter := setupMulticollection(t)
+
+		records := testRecords(sdk.OperationCreate)
+		batches, err := colWriter.buildBatches(ctx, records)
+		is.NoErr(err)
+
+		is.Equal(len(batches), 1)
+		assertUpsertBatch(is, batches[0], records)
+	})
+
+	t.Run("multiple ops", func(t *testing.T) {
+		ctx, is, colWriter := setupMulticollection(t)
+
+		var records []sdk.Record
+		batch0 := testRecords(sdk.OperationUpdate)
+		records = append(records, batch0...)
+
+		batch1 := testRecords(sdk.OperationDelete)
+		records = append(records, batch1...)
+
+		batch2 := testRecords(sdk.OperationCreate)
+		records = append(records, batch2...)
+
+		batch3 := testRecords(sdk.OperationDelete)
+		records = append(records, batch3...)
+
+		batch4 := testRecords(sdk.OperationSnapshot)
+		records = append(records, batch4...)
+
+		batches, err := colWriter.buildBatches(ctx, records)
+		is.NoErr(err)
+
+		is.Equal(len(batches), 5)
+
+		assertUpsertBatch(is, batches[0], batch0)
+		assertDeleteBatch(is, batches[1], batch1)
+		assertUpsertBatch(is, batches[2], batch2)
+		assertDeleteBatch(is, batches[3], batch3)
+		assertUpsertBatch(is, batches[4], batch4)
+	})
+}
+
+func TestMulticollectionWriter_WriteToMultipleNamespaces(t *testing.T) {
+	ctx, is, colWriter := setupMulticollection(t)
+
+	var recs []sdk.Record
+	recs1 := testRecordsWithNamespace(sdk.OperationCreate, "namespace1")
+	recs = append(recs, recs1...)
+	recs2 := testRecordsWithNamespace(sdk.OperationUpdate, "namespace2")
+	recs = append(recs, recs2...)
+	recs3 := testRecordsWithNamespace(sdk.OperationCreate, "namespace3")
+	recs = append(recs, recs3...)
+
+	written, err := colWriter.writeRecords(ctx, recs)
+	is.NoErr(err)
+
+	is.Equal(written, len(recs1)+len(recs2)+len(recs3))
+
+	index1 := assertUpsertRecordsWrittenInNamespace(ctx, t, is, recs1, "namespace1")
+	deleteAllRecords(is, index1)
+
+	index2 := assertUpsertRecordsWrittenInNamespace(ctx, t, is, recs2, "namespace2")
+	deleteAllRecords(is, index2)
+
+	index3 := assertUpsertRecordsWrittenInNamespace(ctx, t, is, recs3, "namespace3")
+	deleteAllRecords(is, index3)
+}
+
 func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 	total := rand.Intn(3) + 1
 	recs := make([]sdk.Record, total)
@@ -127,9 +276,20 @@ func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 			metadata.SetCollection(namespace)
 		}
 
-		var payload sdk.Data = sdk.StructuredData{
-			"vector": []float64{1, 2},
+		vecValues := pineconeVectorValues{
+			Values: []float32{1, 2},
+			SparseValues: sparseValues{
+				Indices: []uint32{3, 5},
+				Values:  []float32{0.5, 0.3},
+			},
 		}
+		bs, err := json.Marshal(vecValues)
+		if err != nil {
+			// should never happen
+			panic(err)
+		}
+
+		payload := sdk.RawData(bs)
 
 		rec := sdk.Record{
 			Position: position, Operation: op,
@@ -150,3 +310,37 @@ func testRecords(op sdk.Operation) []sdk.Record {
 }
 
 func randString() string { return uuid.NewString()[0:8] }
+
+func assertUpsertRecordsWrittenInNamespace(
+	ctx context.Context, t *testing.T, is *is.I,
+	recs []sdk.Record, namespace string,
+) *pinecone.IndexConnection {
+	destCfg := destConfigFromEnv(t)
+	destCfg.Namespace = namespace
+
+	index := createIndex(is, destCfg)
+
+	var ids []string
+	for _, rec := range recs {
+		ids = append(ids, string(rec.Key.Bytes()))
+	}
+
+	res, err := index.FetchVectors(&ctx, ids)
+	is.NoErr(err)
+
+	for id, vec := range res.Vectors {
+		for _, rec := range recs {
+			if id != string(rec.Key.Bytes()) {
+				continue
+			}
+
+			parsedVec, err := parsePineconeVector(rec)
+			is.NoErr(err)
+
+			is.Equal(vec, parsedVec)
+			break
+		}
+	}
+
+	return index
+}

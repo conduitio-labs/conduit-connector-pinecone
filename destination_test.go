@@ -56,7 +56,8 @@ func TestParsePineconeVector(t *testing.T) {
 	is.Equal(vec.Id, "key1")
 
 	is.Equal(vec.Values, vecToBeWritten.Values)
-	is.Equal(vec.SparseValues, vecToBeWritten.SparseValues.PineconeSparseValues())
+	is.Equal(vec.SparseValues.Indices, vecToBeWritten.SparseValues.Indices)
+	is.Equal(vec.SparseValues.Values, vecToBeWritten.SparseValues.Values)
 
 	metadata := vec.Metadata.AsMap()
 	is.Equal(metadata["prop1"], "val1")
