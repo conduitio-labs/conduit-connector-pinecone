@@ -10,7 +10,7 @@ require (
 	github.com/matryer/is v1.4.1
 	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/pinecone-io/go-pinecone v0.4.1
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
