@@ -16,66 +16,57 @@ package pinecone
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"text/template"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
-// buildBatches processes a slice of records and groups them into batches based
-// on their operation type. New batches are started whenever the operation type
-// switches from upsert to delete or vice versa.
-// Records are batched this way so that we preserve conduit's requirement of writing
-// records sequentially.
-func buildBatches(records []sdk.Record) ([]recordBatch, error) {
-	var batches []recordBatch
-	var currUpsertBatch upsertBatch
-	var currDeleteBatch deleteBatch
-
-	for i, rec := range records {
-		isLast := i == len(records)-1
-		switch rec.Operation {
-		case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
-			vec, err := parsePineconeVector(rec)
-			if err != nil {
-				return nil, err
-			}
-
-			currUpsertBatch.vectors = append(currUpsertBatch.vectors, vec)
-
-			if isLast {
-				batches = append(batches, currUpsertBatch)
-			}
-			if len(currDeleteBatch.ids) != 0 {
-				batches = append(batches, currDeleteBatch)
-				currDeleteBatch = deleteBatch{}
-			}
-		case sdk.OperationDelete:
-			id := vectorID(rec.Key)
-			currDeleteBatch.ids = append(currDeleteBatch.ids, id)
-
-			if isLast {
-				batches = append(batches, currDeleteBatch)
-			}
-			if len(currUpsertBatch.vectors) != 0 {
-				batches = append(batches, currUpsertBatch)
-				currUpsertBatch = upsertBatch{}
-			}
-		}
-	}
-
-	return batches, nil
-}
-
 type recordBatch interface {
+	getNamespace() string
+
+	// isOperationCompatible examines the given record and returns whether the
+	// record can be added to the batch or not.
+	isOperationCompatible(sdk.Record) bool
+
+	addRecord(sdk.Record) error
 	writeBatch(context.Context, *pinecone.IndexConnection) (int, error)
 }
 
 type upsertBatch struct {
-	vectors []*pinecone.Vector
+	namespace string
+	vectors   []*pinecone.Vector
 }
 
-func (b upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
+func (b *upsertBatch) getNamespace() string {
+	return b.namespace
+}
+
+func (b *upsertBatch) isOperationCompatible(rec sdk.Record) bool {
+	switch rec.Operation {
+	case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
+		return true
+	case sdk.OperationDelete:
+		return false
+	}
+	return false
+}
+
+func (b *upsertBatch) addRecord(rec sdk.Record) error {
+	vec, err := parsePineconeVector(rec)
+	if err != nil {
+		return err
+	}
+
+	b.vectors = append(b.vectors, vec)
+	return nil
+}
+
+func (b *upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
 	written, err := index.UpsertVectors(&ctx, b.vectors)
 	if err != nil {
 		return 0, fmt.Errorf("failed to upsert vectors: %w", err)
@@ -84,14 +75,254 @@ func (b upsertBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnec
 }
 
 type deleteBatch struct {
-	ids []string
+	namespace string
+	ids       []string
 }
 
-func (b deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
+func (b *deleteBatch) getNamespace() string {
+	return b.namespace
+}
+
+func (b *deleteBatch) isOperationCompatible(rec sdk.Record) bool {
+	return rec.Operation == sdk.OperationDelete
+}
+
+func (b *deleteBatch) addRecord(rec sdk.Record) error {
+	id := vectorID(rec.Key)
+	b.ids = append(b.ids, id)
+	return nil
+}
+
+func (b *deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConnection) (int, error) {
 	err := index.DeleteVectorsById(&ctx, b.ids)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete vectors: %w", err)
 	}
 
 	return len(b.ids), nil
+}
+
+type collectionWriter interface {
+	writeRecords(context.Context, []sdk.Record) (int, error)
+	close() error
+}
+
+type multicollectionWriter struct {
+	apiKey, host string
+
+	indexes           cmap.ConcurrentMap[string, *pinecone.IndexConnection]
+	namespaceTemplate *template.Template
+}
+
+func newMulticollectionWriter(apiKey, host string, template *template.Template) *multicollectionWriter {
+	return &multicollectionWriter{
+		apiKey:            apiKey,
+		host:              host,
+		indexes:           cmap.New[*pinecone.IndexConnection](),
+		namespaceTemplate: template,
+	}
+}
+
+func (w *multicollectionWriter) parseNamespace(record sdk.Record) (string, error) {
+	if w.namespaceTemplate != nil {
+		var sb strings.Builder
+		if err := w.namespaceTemplate.Execute(&sb, record); err != nil {
+			return "", fmt.Errorf("failed to execute namespace template: %w", err)
+		}
+
+		return sb.String(), nil
+	}
+
+	namespace, _ := record.Metadata.GetCollection()
+	return namespace, nil
+}
+
+func (w *multicollectionWriter) addIndexIfMissing(ctx context.Context, namespace string) error {
+	if w.indexes.Has(namespace) {
+		return nil
+	}
+
+	index, err := newIndex(ctx, newIndexParams{
+		apiKey:    w.apiKey,
+		host:      w.host,
+		namespace: namespace,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create new index for namespace %s: %w", namespace, err)
+	}
+
+	sdk.Logger(ctx).Info().Str("namespace", namespace).Msg("connected to new namespaced index")
+
+	w.indexes.Set(namespace, index)
+	return nil
+}
+
+func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.Record) ([]recordBatch, error) {
+	var batches []recordBatch
+
+	addNewBatch := func(rec sdk.Record, namespace string) error {
+		var batch recordBatch
+
+		if rec.Operation == sdk.OperationDelete {
+			batch = &deleteBatch{namespace: namespace}
+		} else {
+			batch = &upsertBatch{namespace: namespace}
+		}
+
+		if err := batch.addRecord(rec); err != nil {
+			return fmt.Errorf("failed to add record: %w", err)
+		}
+
+		batches = append(batches, batch)
+		return nil
+	}
+
+	addToPreviousBatch := func(rec sdk.Record, namespace string) error {
+		prevBatch := batches[len(batches)-1]
+
+		if prevBatch.getNamespace() != namespace {
+			return addNewBatch(rec, namespace)
+		}
+
+		if prevBatch.isOperationCompatible(rec) {
+			return prevBatch.addRecord(rec)
+		}
+		return addNewBatch(rec, namespace)
+	}
+
+	for _, rec := range records {
+		namespace, err := w.parseNamespace(rec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse namespace: %w", err)
+		}
+
+		// Note: we could parallelize the index creation, but for the few
+		// different namespaces that the connector is going to receive it should
+		// not be that problematic. See in the future if it's worth it.
+		if err := w.addIndexIfMissing(ctx, namespace); err != nil {
+			return nil, fmt.Errorf("failed to add missing index: %w", err)
+		}
+
+		if len(batches) == 0 {
+			err = addNewBatch(rec, namespace)
+		} else {
+			err = addToPreviousBatch(rec, namespace)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return batches, nil
+}
+
+func (w *multicollectionWriter) writeRecords(ctx context.Context, records []sdk.Record) (int, error) {
+	batches, err := w.buildBatches(ctx, records)
+	if err != nil {
+		return 0, err
+	}
+
+	var written int
+	for _, batch := range batches {
+		namespace := batch.getNamespace()
+		index, ok := w.indexes.Get(namespace)
+		if !ok {
+			// should be unreachable, something went wrong when building batches
+			panic(fmt.Sprintf("index not found for namespace %s", namespace))
+		}
+
+		batchWrittenRecs, err := batch.writeBatch(ctx, index)
+		written += batchWrittenRecs
+		if err != nil {
+			return written, fmt.Errorf("failed to write record batch: %w", err)
+		}
+	}
+
+	return written, nil
+}
+
+func (w *multicollectionWriter) close() error {
+	var err error
+	for tuple := range w.indexes.IterBuffered() {
+		err = errors.Join(err, tuple.Val.Close())
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to close indexes: %w", err)
+	}
+
+	return nil
+}
+
+type singleCollectionWriter struct {
+	index *pinecone.IndexConnection
+}
+
+func (w *singleCollectionWriter) buildBatches(records []sdk.Record) ([]recordBatch, error) {
+	var batches []recordBatch
+
+	addNewBatch := func(rec sdk.Record) error {
+		var batch recordBatch
+
+		if rec.Operation == sdk.OperationDelete {
+			batch = &deleteBatch{}
+		} else {
+			batch = &upsertBatch{}
+		}
+
+		if err := batch.addRecord(rec); err != nil {
+			return fmt.Errorf("failed to add record: %w", err)
+		}
+
+		batches = append(batches, batch)
+		return nil
+	}
+
+	addToPreviousBatch := func(rec sdk.Record) error {
+		prevBatch := batches[len(batches)-1]
+
+		if prevBatch.isOperationCompatible(rec) {
+			return prevBatch.addRecord(rec)
+		}
+		return addNewBatch(rec)
+	}
+
+	for _, rec := range records {
+		var err error
+		if len(batches) == 0 {
+			err = addNewBatch(rec)
+		} else {
+			err = addToPreviousBatch(rec)
+		}
+		if err != nil {
+			return batches, err
+		}
+	}
+
+	return batches, nil
+}
+
+func (w *singleCollectionWriter) writeRecords(ctx context.Context, records []sdk.Record) (int, error) {
+	batches, err := w.buildBatches(records)
+	if err != nil {
+		return 0, err
+	}
+
+	var written int
+	for _, batch := range batches {
+		batchWrittenRecs, err := batch.writeBatch(ctx, w.index)
+		written += batchWrittenRecs
+		if err != nil {
+			return written, fmt.Errorf("failed to write record batch: %w", err)
+		}
+	}
+
+	return written, nil
+}
+
+func (w *singleCollectionWriter) close() error {
+	if err := w.index.Close(); err != nil {
+		return fmt.Errorf("failed to close index: %w", err)
+	}
+	return nil
 }

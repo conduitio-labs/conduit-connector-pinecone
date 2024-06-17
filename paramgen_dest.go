@@ -27,7 +27,7 @@ func (DestinationConfig) Parameters() map[string]sdk.Parameter {
 		},
 		"namespace": {
 			Default:     "",
-			Description: "namespace is the Pinecone's index namespace. Defaults to the empty namespace.",
+			Description: "namespace is the Pinecone's index namespace. Defaults to the empty namespace. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the namespace.",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},
