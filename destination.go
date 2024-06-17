@@ -45,7 +45,8 @@ type DestinationConfig struct {
 	Host string `json:"host" validate:"required"`
 
 	// Namespace is the Pinecone's index namespace. Defaults to the empty
-	// namespace.
+	// namespace. It can contain a [Go template](https://pkg.go.dev/text/template)
+	// that will be executed for each record to determine the namespace.
 	Namespace string `json:"namespace"`
 }
 
