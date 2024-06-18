@@ -51,7 +51,7 @@ To perform the tests locally you'll need the `API_KEY` and `HOST_URL` environmen
 |------------------------|-----------------------------------------------------------------------------|----------|---------------|
 | `apiKey`            | The Pinecone API key.                          | Yes      |               |
 | `host`            | The Pinecone index host.                          | Yes      |               |
-| `namespace`            | The Pinecone namespace to target. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the namespace. By default, the namespace will come from the `opencdc.collection` record metadata field. | No      | `{{ index .Metadata "opencdc.collection" }}`              |
+| `namespace`            | The Pinecone namespace to target. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the namespace. By default, the namespace will come from the `opencdc.collection` record metadata field. If no namespace found, the record will be written into the default namespace. | No      | `{{ index .Metadata "opencdc.collection" }}`              |
 
 ## Example pipeline configuration
 
