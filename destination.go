@@ -148,14 +148,19 @@ func newIndex(ctx context.Context, params newIndexParams) (*pinecone.IndexConnec
 
 	var index *pinecone.IndexConnection
 	if params.namespace != "" {
-		index, err = client.IndexWithNamespace(hostURL.Host, params.namespace)
+		index, err = client.Index(pinecone.NewIndexConnParams{
+			Host:      hostURL.Host,
+			Namespace: params.namespace,
+		})
 		if err != nil {
 			return nil, fmt.Errorf(
 				"error establishing index connection to namespace %v: %w",
 				params.namespace, err)
 		}
 	} else {
-		index, err = client.Index(hostURL.Host)
+		index, err = client.Index(pinecone.NewIndexConnParams{
+			Host: hostURL.Host,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("error establishing index connection: %w", err)
 		}
