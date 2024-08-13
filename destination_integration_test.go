@@ -104,7 +104,10 @@ func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection 
 	hostURL, err := url.Parse(destCfg.Host)
 	is.NoErr(err)
 
-	index, err := client.IndexWithNamespace(hostURL.Hostname(), destCfg.Namespace)
+	index, err := client.Index(pinecone.NewIndexConnParams{
+		Host:      hostURL.Hostname(),
+		Namespace: destCfg.Namespace,
+	})
 	is.NoErr(err)
 
 	return index
