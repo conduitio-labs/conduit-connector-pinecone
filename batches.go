@@ -21,6 +21,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/pinecone-io/go-pinecone/pinecone"
@@ -31,9 +32,9 @@ type recordBatch interface {
 
 	// isOperationCompatible examines the given record and returns whether the
 	// record can be added to the batch or not.
-	isOperationCompatible(sdk.Record) bool
+	isOperationCompatible(opencdc.Record) bool
 
-	addRecord(sdk.Record) error
+	addRecord(opencdc.Record) error
 	writeBatch(context.Context, *pinecone.IndexConnection) (int, error)
 }
 
@@ -46,17 +47,17 @@ func (b *upsertBatch) getNamespace() string {
 	return b.namespace
 }
 
-func (b *upsertBatch) isOperationCompatible(rec sdk.Record) bool {
+func (b *upsertBatch) isOperationCompatible(rec opencdc.Record) bool {
 	switch rec.Operation {
-	case sdk.OperationCreate, sdk.OperationUpdate, sdk.OperationSnapshot:
+	case opencdc.OperationCreate, opencdc.OperationUpdate, opencdc.OperationSnapshot:
 		return true
-	case sdk.OperationDelete:
+	case opencdc.OperationDelete:
 		return false
 	}
 	return false
 }
 
-func (b *upsertBatch) addRecord(rec sdk.Record) error {
+func (b *upsertBatch) addRecord(rec opencdc.Record) error {
 	vec, err := parsePineconeVector(rec)
 	if err != nil {
 		return err
@@ -83,11 +84,11 @@ func (b *deleteBatch) getNamespace() string {
 	return b.namespace
 }
 
-func (b *deleteBatch) isOperationCompatible(rec sdk.Record) bool {
-	return rec.Operation == sdk.OperationDelete
+func (b *deleteBatch) isOperationCompatible(rec opencdc.Record) bool {
+	return rec.Operation == opencdc.OperationDelete
 }
 
-func (b *deleteBatch) addRecord(rec sdk.Record) error {
+func (b *deleteBatch) addRecord(rec opencdc.Record) error {
 	id := vectorID(rec.Key)
 	b.ids = append(b.ids, id)
 	return nil
@@ -103,7 +104,7 @@ func (b *deleteBatch) writeBatch(ctx context.Context, index *pinecone.IndexConne
 }
 
 type collectionWriter interface {
-	writeRecords(context.Context, []sdk.Record) (int, error)
+	writeRecords(context.Context, []opencdc.Record) (int, error)
 	close() error
 }
 
@@ -123,7 +124,7 @@ func newMulticollectionWriter(apiKey, host string, template *template.Template) 
 	}
 }
 
-func (w *multicollectionWriter) parseNamespace(record sdk.Record) (string, error) {
+func (w *multicollectionWriter) parseNamespace(record opencdc.Record) (string, error) {
 	if w.namespaceTemplate != nil {
 		var sb strings.Builder
 		if err := w.namespaceTemplate.Execute(&sb, record); err != nil {
@@ -157,13 +158,13 @@ func (w *multicollectionWriter) addIndexIfMissing(ctx context.Context, namespace
 	return nil
 }
 
-func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.Record) ([]recordBatch, error) {
+func (w *multicollectionWriter) buildBatches(ctx context.Context, records []opencdc.Record) ([]recordBatch, error) {
 	var batches []recordBatch
 
-	addNewBatch := func(rec sdk.Record, namespace string) error {
+	addNewBatch := func(rec opencdc.Record, namespace string) error {
 		var batch recordBatch
 
-		if rec.Operation == sdk.OperationDelete {
+		if rec.Operation == opencdc.OperationDelete {
 			batch = &deleteBatch{namespace: namespace}
 		} else {
 			batch = &upsertBatch{namespace: namespace}
@@ -177,7 +178,7 @@ func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.
 		return nil
 	}
 
-	addToPreviousBatch := func(rec sdk.Record, namespace string) error {
+	addToPreviousBatch := func(rec opencdc.Record, namespace string) error {
 		prevBatch := batches[len(batches)-1]
 
 		if prevBatch.getNamespace() != namespace {
@@ -216,7 +217,7 @@ func (w *multicollectionWriter) buildBatches(ctx context.Context, records []sdk.
 	return batches, nil
 }
 
-func (w *multicollectionWriter) writeRecords(ctx context.Context, records []sdk.Record) (int, error) {
+func (w *multicollectionWriter) writeRecords(ctx context.Context, records []opencdc.Record) (int, error) {
 	batches, err := w.buildBatches(ctx, records)
 	if err != nil {
 		return 0, err
@@ -258,13 +259,13 @@ type singleCollectionWriter struct {
 	index *pinecone.IndexConnection
 }
 
-func (w *singleCollectionWriter) buildBatches(records []sdk.Record) ([]recordBatch, error) {
+func (w *singleCollectionWriter) buildBatches(records []opencdc.Record) ([]recordBatch, error) {
 	var batches []recordBatch
 
-	addNewBatch := func(rec sdk.Record) error {
+	addNewBatch := func(rec opencdc.Record) error {
 		var batch recordBatch
 
-		if rec.Operation == sdk.OperationDelete {
+		if rec.Operation == opencdc.OperationDelete {
 			batch = &deleteBatch{}
 		} else {
 			batch = &upsertBatch{}
@@ -278,7 +279,7 @@ func (w *singleCollectionWriter) buildBatches(records []sdk.Record) ([]recordBat
 		return nil
 	}
 
-	addToPreviousBatch := func(rec sdk.Record) error {
+	addToPreviousBatch := func(rec opencdc.Record) error {
 		prevBatch := batches[len(batches)-1]
 
 		if prevBatch.isOperationCompatible(rec) {
@@ -302,7 +303,7 @@ func (w *singleCollectionWriter) buildBatches(records []sdk.Record) ([]recordBat
 	return batches, nil
 }
 
-func (w *singleCollectionWriter) writeRecords(ctx context.Context, records []sdk.Record) (int, error) {
+func (w *singleCollectionWriter) writeRecords(ctx context.Context, records []opencdc.Record) (int, error) {
 	batches, err := w.buildBatches(records)
 	if err != nil {
 		return 0, err

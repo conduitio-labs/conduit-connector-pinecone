@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -66,7 +67,7 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	defer teardown(ctx, is, dest)
 
 	id := uuid.NewString()
-	position := sdk.Position(fmt.Sprintf("pos-%v", id))
+	position := opencdc.Position(fmt.Sprintf("pos-%v", id))
 	metadata := map[string]string{
 		"prop1": "val1",
 		"prop2": "val2",
@@ -83,9 +84,9 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	payload, err := json.Marshal(vecsToBeWritten)
 	is.NoErr(err)
 
-	rec := sdk.Util.Source.NewRecordCreate(position, metadata, sdk.RawData(id), sdk.RawData(payload))
+	rec := sdk.Util.Source.NewRecordCreate(position, metadata, opencdc.RawData(id), opencdc.RawData(payload))
 
-	_, err = dest.Write(ctx, []sdk.Record{rec})
+	_, err = dest.Write(ctx, []opencdc.Record{rec})
 	is.NoErr(err)
 
 	index := createIndex(is, destCfg)
@@ -123,7 +124,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	defer teardown(ctx, is, dest)
 
 	id := uuid.NewString()
-	position := sdk.Position(fmt.Sprintf("pos-%v", id))
+	position := opencdc.Position(fmt.Sprintf("pos-%v", id))
 	metadata := map[string]string{"prop1": "val1", "prop2": "val2"}
 
 	vecsToBeWritten := pineconeVectorValues{
@@ -140,28 +141,28 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	index := createIndex(is, destCfg)
 	defer deleteAllRecords(is, index)
 
-	for _, op := range []sdk.Operation{
-		sdk.OperationCreate,
-		sdk.OperationUpdate,
-		sdk.OperationSnapshot,
+	for _, op := range []opencdc.Operation{
+		opencdc.OperationCreate,
+		opencdc.OperationUpdate,
+		opencdc.OperationSnapshot,
 	} {
-		rec := sdk.Record{
+		rec := opencdc.Record{
 			Position:  position,
 			Operation: op,
 			Metadata:  metadata,
-			Key:       sdk.RawData(id),
-			Payload: sdk.Change{
+			Key:       opencdc.RawData(id),
+			Payload: opencdc.Change{
 				Before: nil,
-				After:  sdk.RawData(payload),
+				After:  opencdc.RawData(payload),
 			},
 		}
-		_, err = dest.Write(ctx, []sdk.Record{rec})
+		_, err = dest.Write(ctx, []opencdc.Record{rec})
 		is.NoErr(err)
 
 		assertWrittenRecordIndex(ctx, t, is, index, id, vecsToBeWritten)
 
-		rec = sdk.Util.Source.NewRecordDelete(position, metadata, sdk.RawData(id))
-		_, err = dest.Write(ctx, []sdk.Record{rec})
+		rec = sdk.Util.Source.NewRecordDelete(position, metadata, opencdc.RawData(id), nil)
+		_, err = dest.Write(ctx, []opencdc.Record{rec})
 		is.NoErr(err)
 
 		assertDeletedRecordIndex(ctx, t, is, index, id)

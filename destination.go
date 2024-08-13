@@ -24,6 +24,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/conduitio/conduit-commons/config"
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/pinecone-io/go-pinecone/pinecone"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -62,12 +64,12 @@ func NewDestination() sdk.Destination {
 	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
 }
 
-func (d *Destination) Parameters() map[string]sdk.Parameter {
+func (d *Destination) Parameters() config.Parameters {
 	return d.config.Parameters()
 }
 
-func (d *Destination) Configure(ctx context.Context, cfg map[string]string) (err error) {
-	if err = sdk.Util.ParseConfig(cfg, &d.config); err != nil {
+func (d *Destination) Configure(ctx context.Context, cfg config.Config) (err error) {
+	if err = sdk.Util.ParseConfig(ctx, cfg, &d.config, d.Parameters()); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
@@ -103,7 +105,7 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 	return nil
 }
 
-func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
+func (d *Destination) Write(ctx context.Context, records []opencdc.Record) (int, error) {
 	written, err := d.colWriter.writeRecords(ctx, records)
 	if err != nil {
 		return written, fmt.Errorf("destination failed to write %v records: %w", written, err)
@@ -163,7 +165,7 @@ func newIndex(ctx context.Context, params newIndexParams) (*pinecone.IndexConnec
 	return index, nil
 }
 
-func vectorID(key sdk.Data) string {
+func vectorID(key opencdc.Data) string {
 	return string(key.Bytes())
 }
 
@@ -180,7 +182,7 @@ type pineconeVectorValues struct {
 	SparseValues sparseValues `json:"sparse_values,omitempty"`
 }
 
-func parsePineconeVector(rec sdk.Record) (*pinecone.Vector, error) {
+func parsePineconeVector(rec opencdc.Record) (*pinecone.Vector, error) {
 	id := vectorID(rec.Key)
 
 	var vectorValues pineconeVectorValues
