@@ -15,5 +15,5 @@ pipelines:
         settings:
           apiKey: ${API_KEY}
           host: ${HOST_URL}
-          sdk.record.format: template
-          sdk.record.format.options: '{{ printf "%s" .Payload.After }}'
+          opencdc.Record.format: template
+          opencdc.Record.format.options: '{{ printf "%s" .Payload.After }}'

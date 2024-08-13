@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/conduitio/conduit-commons/opencdc"
 	"github.com/matryer/is"
 )
 
@@ -36,17 +36,17 @@ func TestParsePineconeVector(t *testing.T) {
 	payload, err := json.Marshal(vecToBeWritten)
 	is.NoErr(err)
 
-	rec := sdk.Record{
+	rec := opencdc.Record{
 		Position:  nil,
-		Operation: sdk.OperationCreate,
+		Operation: opencdc.OperationCreate,
 		Metadata: map[string]string{
 			"prop1": "val1",
 			"prop2": "val2",
 		},
-		Key: sdk.RawData("key1"),
-		Payload: sdk.Change{
+		Key: opencdc.RawData("key1"),
+		Payload: opencdc.Change{
 			Before: nil,
-			After:  sdk.RawData(payload),
+			After:  opencdc.RawData(payload),
 		},
 	}
 
