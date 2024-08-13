@@ -21,13 +21,13 @@ import (
 	"testing"
 	"text/template"
 
-	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/conduitio/conduit-commons/opencdc"
 	"github.com/google/uuid"
 	"github.com/matryer/is"
 	"github.com/pinecone-io/go-pinecone/pinecone"
 )
 
-func assertUpsertBatch(is *is.I, batch recordBatch, records []sdk.Record) {
+func assertUpsertBatch(is *is.I, batch recordBatch, records []opencdc.Record) {
 	upsertBatch, ok := batch.(*upsertBatch)
 	is.True(ok) // batch isn't upsertBatch
 
@@ -41,7 +41,7 @@ func assertUpsertBatch(is *is.I, batch recordBatch, records []sdk.Record) {
 	}
 }
 
-func assertDeleteBatch(is *is.I, batch recordBatch, records []sdk.Record) {
+func assertDeleteBatch(is *is.I, batch recordBatch, records []opencdc.Record) {
 	deleteBatch, ok := batch.(*deleteBatch)
 	is.True(ok) // batch isn't deleteBatch
 
@@ -58,7 +58,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
-		var records []sdk.Record
+		var records []opencdc.Record
 		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
@@ -67,7 +67,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 
 	t.Run("only delete", func(t *testing.T) {
 		is := is.New(t)
-		records := testRecords(sdk.OperationDelete)
+		records := testRecords(opencdc.OperationDelete)
 		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
@@ -77,7 +77,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 
 	t.Run("only non delete", func(t *testing.T) {
 		is := is.New(t)
-		records := testRecords(sdk.OperationCreate)
+		records := testRecords(opencdc.OperationCreate)
 		batches, err := colWriter.buildBatches(records)
 		is.NoErr(err)
 
@@ -87,20 +87,20 @@ func TestSingleCollectionWriter(t *testing.T) {
 
 	t.Run("multiple ops", func(t *testing.T) {
 		is := is.New(t)
-		var records []sdk.Record
-		batch0 := testRecords(sdk.OperationUpdate)
+		var records []opencdc.Record
+		batch0 := testRecords(opencdc.OperationUpdate)
 		records = append(records, batch0...)
 
-		batch1 := testRecords(sdk.OperationDelete)
+		batch1 := testRecords(opencdc.OperationDelete)
 		records = append(records, batch1...)
 
-		batch2 := testRecords(sdk.OperationCreate)
+		batch2 := testRecords(opencdc.OperationCreate)
 		records = append(records, batch2...)
 
-		batch3 := testRecords(sdk.OperationDelete)
+		batch3 := testRecords(opencdc.OperationDelete)
 		records = append(records, batch3...)
 
-		batch4 := testRecords(sdk.OperationSnapshot)
+		batch4 := testRecords(opencdc.OperationSnapshot)
 		records = append(records, batch4...)
 
 		batches, err := colWriter.buildBatches(records)
@@ -134,8 +134,8 @@ func TestParseNamespace(t *testing.T) {
 			New("test").
 			Parse(`{{ printf "%s" .Key }}`))
 
-		namespace, err := colWriter.parseNamespace(sdk.Record{
-			Key: sdk.RawData("testtemplate"),
+		namespace, err := colWriter.parseNamespace(opencdc.Record{
+			Key: opencdc.RawData("testtemplate"),
 		})
 		is.NoErr(err)
 
@@ -144,8 +144,8 @@ func TestParseNamespace(t *testing.T) {
 	t.Run("from opencdc.collection", func(t *testing.T) {
 		_, is, colWriter := setupMulticollection(t)
 
-		namespace, err := colWriter.parseNamespace(sdk.Record{
-			Metadata: sdk.Metadata{"opencdc.collection": "testtemplate"},
+		namespace, err := colWriter.parseNamespace(opencdc.Record{
+			Metadata: opencdc.Metadata{"opencdc.collection": "testtemplate"},
 		})
 		is.NoErr(err)
 
@@ -157,12 +157,12 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 	t.Run("connects to multiple namespaces when building batches", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
-		var recs []sdk.Record
-		recs1 := testRecordsWithNamespace(sdk.OperationCreate, "namespace1")
+		var recs []opencdc.Record
+		recs1 := testRecordsWithNamespace(opencdc.OperationCreate, "namespace1")
 		recs = append(recs, recs1...)
-		recs2 := testRecordsWithNamespace(sdk.OperationCreate, "namespace2")
+		recs2 := testRecordsWithNamespace(opencdc.OperationCreate, "namespace2")
 		recs = append(recs, recs2...)
-		recs3 := testRecordsWithNamespace(sdk.OperationCreate, "namespace3")
+		recs3 := testRecordsWithNamespace(opencdc.OperationCreate, "namespace3")
 		recs = append(recs, recs3...)
 
 		_, err := colWriter.buildBatches(ctx, recs)
@@ -174,7 +174,7 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
-		var records []sdk.Record
+		var records []opencdc.Record
 		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
@@ -184,7 +184,7 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 	t.Run("only delete", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
-		records := testRecords(sdk.OperationDelete)
+		records := testRecords(opencdc.OperationDelete)
 		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
@@ -195,7 +195,7 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 	t.Run("only non delete", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
-		records := testRecords(sdk.OperationCreate)
+		records := testRecords(opencdc.OperationCreate)
 		batches, err := colWriter.buildBatches(ctx, records)
 		is.NoErr(err)
 
@@ -206,20 +206,20 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 	t.Run("multiple ops", func(t *testing.T) {
 		ctx, is, colWriter := setupMulticollection(t)
 
-		var records []sdk.Record
-		batch0 := testRecords(sdk.OperationUpdate)
+		var records []opencdc.Record
+		batch0 := testRecords(opencdc.OperationUpdate)
 		records = append(records, batch0...)
 
-		batch1 := testRecords(sdk.OperationDelete)
+		batch1 := testRecords(opencdc.OperationDelete)
 		records = append(records, batch1...)
 
-		batch2 := testRecords(sdk.OperationCreate)
+		batch2 := testRecords(opencdc.OperationCreate)
 		records = append(records, batch2...)
 
-		batch3 := testRecords(sdk.OperationDelete)
+		batch3 := testRecords(opencdc.OperationDelete)
 		records = append(records, batch3...)
 
-		batch4 := testRecords(sdk.OperationSnapshot)
+		batch4 := testRecords(opencdc.OperationSnapshot)
 		records = append(records, batch4...)
 
 		batches, err := colWriter.buildBatches(ctx, records)
@@ -238,12 +238,12 @@ func TestMulticollectionWriter_buildBatches(t *testing.T) {
 func TestMulticollectionWriter_WriteToMultipleNamespaces(t *testing.T) {
 	ctx, is, colWriter := setupMulticollection(t)
 
-	var recs []sdk.Record
-	recs1 := testRecordsWithNamespace(sdk.OperationCreate, "namespace1")
+	var recs []opencdc.Record
+	recs1 := testRecordsWithNamespace(opencdc.OperationCreate, "namespace1")
 	recs = append(recs, recs1...)
-	recs2 := testRecordsWithNamespace(sdk.OperationUpdate, "namespace2")
+	recs2 := testRecordsWithNamespace(opencdc.OperationUpdate, "namespace2")
 	recs = append(recs, recs2...)
-	recs3 := testRecordsWithNamespace(sdk.OperationCreate, "namespace3")
+	recs3 := testRecordsWithNamespace(opencdc.OperationCreate, "namespace3")
 	recs = append(recs, recs3...)
 
 	written, err := colWriter.writeRecords(ctx, recs)
@@ -261,14 +261,14 @@ func TestMulticollectionWriter_WriteToMultipleNamespaces(t *testing.T) {
 	deleteAllRecords(is, index3)
 }
 
-func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
+func testRecordsWithNamespace(op opencdc.Operation, namespace string) []opencdc.Record {
 	total := rand.Intn(3) + 1
-	recs := make([]sdk.Record, total)
+	recs := make([]opencdc.Record, total)
 
 	for i := range total {
-		position := sdk.Position(randString())
-		key := sdk.RawData(randString())
-		metadata := sdk.Metadata{
+		position := opencdc.Position(randString())
+		key := opencdc.RawData(randString())
+		metadata := opencdc.Metadata{
 			randString(): randString(),
 			randString(): randString(),
 		}
@@ -289,12 +289,12 @@ func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 			panic(err)
 		}
 
-		payload := sdk.RawData(bs)
+		payload := opencdc.RawData(bs)
 
-		rec := sdk.Record{
+		rec := opencdc.Record{
 			Position: position, Operation: op,
 			Metadata: metadata, Key: key,
-			Payload: sdk.Change{
+			Payload: opencdc.Change{
 				Before: nil, // discarded, the Pinecone destination connector doesn't use this field
 				After:  payload,
 			},
@@ -305,7 +305,7 @@ func testRecordsWithNamespace(op sdk.Operation, namespace string) []sdk.Record {
 	return recs
 }
 
-func testRecords(op sdk.Operation) []sdk.Record {
+func testRecords(op opencdc.Operation) []opencdc.Record {
 	return testRecordsWithNamespace(op, "")
 }
 
@@ -313,7 +313,7 @@ func randString() string { return uuid.NewString()[0:8] }
 
 func assertUpsertRecordsWrittenInNamespace(
 	ctx context.Context, t *testing.T, is *is.I,
-	recs []sdk.Record, namespace string,
+	recs []opencdc.Record, namespace string,
 ) *pinecone.IndexConnection {
 	destCfg := destConfigFromEnv(t)
 	destCfg.Namespace = namespace
