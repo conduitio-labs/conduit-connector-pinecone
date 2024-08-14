@@ -262,7 +262,7 @@ func TestMain(t *testing.M) {
 			Msg("failed to load env variables from .env file, assuming github ci has the required env vars")
 	}
 
-	t.Run()
+	os.Exit(t.Run())
 }
 
 func teardown(ctx context.Context, is *is.I, dest sdk.Destination) {
