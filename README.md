@@ -38,8 +38,8 @@ To perform the tests locally you'll need the `API_KEY` and `HOST_URL` environmen
 
 1. You'll need to setup a new account if you don't have it at https://www.pinecone.io/   
 2. Create a new index.
-    2.1. On our tests we used the default `cosine` metric, but they also run on the other metrics.
-    2.2. Set index dimensions to 2.
+    - On our tests we used the default `cosine` metric, but they also run on the other metrics.
+    - Set index dimensions to 2.
 3. Create a new API Key.
 4. Open the `.env.example` file and fill up the variables.
 5. Rename `.env.example` to `.env`
