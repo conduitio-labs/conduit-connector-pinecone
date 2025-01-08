@@ -11,7 +11,7 @@ require (
 	github.com/matryer/is v1.4.1
 	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/pinecone-io/go-pinecone v1.1.1
-	google.golang.org/protobuf v1.36.1
+	google.golang.org/protobuf v1.36.2
 )
 
 require (
