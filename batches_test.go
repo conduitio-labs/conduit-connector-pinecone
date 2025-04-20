@@ -119,7 +119,7 @@ func TestSingleCollectionWriter(t *testing.T) {
 func setupMulticollection(t *testing.T) (context.Context, *is.I, *multicollectionWriter) {
 	cfg := destConfigFromEnv(t)
 
-	colWriter := newMulticollectionWriter(cfg.APIKey, cfg.Host, nil)
+	colWriter := newMulticollectionWriter(cfg["apiKey"], cfg["host"], nil)
 	ctx := context.Background()
 	is := is.New(t)
 
@@ -316,7 +316,7 @@ func assertUpsertRecordsWrittenInNamespace(
 	recs []opencdc.Record, namespace string,
 ) *pinecone.IndexConnection {
 	destCfg := destConfigFromEnv(t)
-	destCfg.Namespace = namespace
+	destCfg["namespace"] = namespace
 
 	index := createIndex(is, destCfg)
 

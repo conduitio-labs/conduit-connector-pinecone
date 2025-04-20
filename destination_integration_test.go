@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
@@ -34,10 +35,10 @@ import (
 
 const maxRetries = 4
 
-func destConfigFromEnv(t *testing.T) DestinationConfig {
-	return DestinationConfig{
-		APIKey: requiredEnv(t, "API_KEY"),
-		Host:   requiredEnv(t, "HOST_URL"),
+func destConfigFromEnv(t *testing.T) config.Config {
+	return config.Config{
+		"apiKey": requiredEnv(t, "API_KEY"),
+		"host":   requiredEnv(t, "HOST_URL"),
 	}
 }
 
@@ -54,12 +55,12 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	ctx := context.Background()
 	destCfg := destConfigFromEnv(t)
 	// we use the default namespace on all other tests, so it's correct to set it here
-	destCfg.Namespace = fmt.Sprintf("test-namespace%s", uuid.NewString()[:8])
+	destCfg["namespace"] = fmt.Sprintf("test-namespace%s", uuid.NewString()[:8])
 
 	is := is.New(t)
 	dest := NewDestination()
 
-	err := dest.Configure(ctx, destCfg.toMap())
+	err := sdk.Util.ParseConfig(ctx, destCfg, dest.Config(), Connector.NewSpecification().DestinationParams)
 	is.NoErr(err)
 
 	err = dest.Open(ctx)
@@ -92,21 +93,23 @@ func TestDestination_NamespaceSet(t *testing.T) {
 	index := createIndex(is, destCfg)
 	defer deleteAllRecords(is, index)
 
-	assertNamespaceExists(ctx, t, is, index, destCfg.Namespace)
+	assertNamespaceExists(ctx, t, is, index, destCfg["namespace"])
 }
 
-func createIndex(is *is.I, destCfg DestinationConfig) *pinecone.IndexConnection {
+func createIndex(is *is.I, config config.Config) *pinecone.IndexConnection {
+	apikey, host, namespace := config["apiKey"], config["host"], config["namespace"]
+
 	client, err := pinecone.NewClient(pinecone.NewClientParams{
-		ApiKey: destCfg.APIKey,
+		ApiKey: apikey,
 	})
 	is.NoErr(err)
 
-	hostURL, err := url.Parse(destCfg.Host)
+	hostURL, err := url.Parse(host)
 	is.NoErr(err)
 
 	index, err := client.Index(pinecone.NewIndexConnParams{
 		Host:      hostURL.Hostname(),
-		Namespace: destCfg.Namespace,
+		Namespace: namespace,
 	})
 	is.NoErr(err)
 
@@ -119,7 +122,7 @@ func TestDestination_Integration_WriteDelete(t *testing.T) {
 	is := is.New(t)
 	dest := NewDestination()
 
-	err := dest.Configure(ctx, destCfg.toMap())
+	err := sdk.Util.ParseConfig(ctx, destCfg, dest.Config(), Connector.NewSpecification().DestinationParams)
 	is.NoErr(err)
 
 	err = dest.Open(ctx)

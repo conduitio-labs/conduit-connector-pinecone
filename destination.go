@@ -40,41 +40,26 @@ type Destination struct {
 }
 
 type DestinationConfig struct {
-	// APIKey is the API Key for authenticating with Pinecone.
+	sdk.DefaultDestinationMiddleware
+
+	// The API Key for authenticating with Pinecone.
 	APIKey string `json:"apiKey" validate:"required"`
 
-	// Host is the whole Pinecone index host URL.
+	// The whole Pinecone index host URL.
 	Host string `json:"host" validate:"required"`
 
-	// Namespace is the Pinecone's index namespace. Defaults to the empty
+	// The Pinecone's index namespace. Defaults to the empty
 	// namespace. It can contain a [Go template](https://pkg.go.dev/text/template)
 	// that will be executed for each record to determine the namespace.
 	Namespace string `json:"namespace"`
 }
 
-func (d DestinationConfig) toMap() map[string]string {
-	return map[string]string{
-		"apiKey":    d.APIKey,
-		"host":      d.Host,
-		"namespace": d.Namespace,
-	}
-}
-
 func NewDestination() sdk.Destination {
-	return sdk.DestinationWithMiddleware(&Destination{}, sdk.DefaultDestinationMiddleware()...)
+	return sdk.DestinationWithMiddleware(&Destination{})
 }
 
 func (d *Destination) Parameters() config.Parameters {
 	return d.config.Parameters()
-}
-
-func (d *Destination) Configure(ctx context.Context, cfg config.Config) (err error) {
-	if err = sdk.Util.ParseConfig(ctx, cfg, &d.config, d.Parameters()); err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-	sdk.Logger(ctx).Info().Msg("configured pinecone destination")
-
-	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) (err error) {
