@@ -8,16 +8,24 @@ import (
 )
 
 const (
-	DestinationConfigApiKey    = "apiKey"
-	DestinationConfigHost      = "host"
-	DestinationConfigNamespace = "namespace"
+	DestinationConfigApiKey                         = "apiKey"
+	DestinationConfigHost                           = "host"
+	DestinationConfigNamespace                      = "namespace"
+	DestinationConfigSdkBatchDelay                  = "sdk.batch.delay"
+	DestinationConfigSdkBatchSize                   = "sdk.batch.size"
+	DestinationConfigSdkRateBurst                   = "sdk.rate.burst"
+	DestinationConfigSdkRatePerSecond               = "sdk.rate.perSecond"
+	DestinationConfigSdkRecordFormat                = "sdk.record.format"
+	DestinationConfigSdkRecordFormatOptions         = "sdk.record.format.options"
+	DestinationConfigSdkSchemaExtractKeyEnabled     = "sdk.schema.extract.key.enabled"
+	DestinationConfigSdkSchemaExtractPayloadEnabled = "sdk.schema.extract.payload.enabled"
 )
 
 func (DestinationConfig) Parameters() map[string]config.Parameter {
 	return map[string]config.Parameter{
 		DestinationConfigApiKey: {
 			Default:     "",
-			Description: "APIKey is the API Key for authenticating with Pinecone.",
+			Description: "The API Key for authenticating with Pinecone.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
@@ -25,7 +33,7 @@ func (DestinationConfig) Parameters() map[string]config.Parameter {
 		},
 		DestinationConfigHost: {
 			Default:     "",
-			Description: "Host is the whole Pinecone index host URL.",
+			Description: "The whole Pinecone index host URL.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
@@ -33,8 +41,62 @@ func (DestinationConfig) Parameters() map[string]config.Parameter {
 		},
 		DestinationConfigNamespace: {
 			Default:     "",
-			Description: "Namespace is the Pinecone's index namespace. Defaults to the empty\nnamespace. It can contain a [Go template](https://pkg.go.dev/text/template)\nthat will be executed for each record to determine the namespace.",
+			Description: "The Pinecone's index namespace. Defaults to the empty\nnamespace. It can contain a [Go template](https://pkg.go.dev/text/template)\nthat will be executed for each record to determine the namespace.",
 			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		DestinationConfigSdkBatchDelay: {
+			Default:     "0",
+			Description: "Maximum delay before an incomplete batch is written to the destination.",
+			Type:        config.ParameterTypeDuration,
+			Validations: []config.Validation{},
+		},
+		DestinationConfigSdkBatchSize: {
+			Default:     "0",
+			Description: "Maximum size of batch before it gets written to the destination.",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{
+				config.ValidationGreaterThan{V: -1},
+			},
+		},
+		DestinationConfigSdkRateBurst: {
+			Default:     "0",
+			Description: "Allow bursts of at most X records (0 or less means that bursts are not\nlimited). Only takes effect if a rate limit per second is set. Note that\nif `sdk.batch.size` is bigger than `sdk.rate.burst`, the effective batch\nsize will be equal to `sdk.rate.burst`.",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{
+				config.ValidationGreaterThan{V: -1},
+			},
+		},
+		DestinationConfigSdkRatePerSecond: {
+			Default:     "0",
+			Description: "Maximum number of records written per second (0 means no rate limit).",
+			Type:        config.ParameterTypeFloat,
+			Validations: []config.Validation{
+				config.ValidationGreaterThan{V: -1},
+			},
+		},
+		DestinationConfigSdkRecordFormat: {
+			Default:     "opencdc/json",
+			Description: "The format of the output record. See the Conduit documentation for a full\nlist of supported formats (https://conduit.io/docs/using/connectors/configuration-parameters/output-format).",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		DestinationConfigSdkRecordFormatOptions: {
+			Default:     "",
+			Description: "Options to configure the chosen output record format. Options are normally\nkey=value pairs separated with comma (e.g. opt1=val2,opt2=val2), except\nfor the `template` record format, where options are a Go template.",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		DestinationConfigSdkSchemaExtractKeyEnabled: {
+			Default:     "true",
+			Description: "Whether to extract and decode the record key with a schema.",
+			Type:        config.ParameterTypeBool,
+			Validations: []config.Validation{},
+		},
+		DestinationConfigSdkSchemaExtractPayloadEnabled: {
+			Default:     "true",
+			Description: "Whether to extract and decode the record payload with a schema.",
+			Type:        config.ParameterTypeBool,
 			Validations: []config.Validation{},
 		},
 	}
